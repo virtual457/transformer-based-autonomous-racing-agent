@@ -6,7 +6,8 @@
 <a id="readme-top"></a>
 
 <div align="center">
-  <h3 align="center">🏎️ Transformer-Based Autonomous Racing Agent</h3>
+  <p align="center" style="font-size: 80px;">🏎️</p>
+  <h3 align="center">Transformer-Based Autonomous Racing Agent</h3>
   <p align="center">
     An end-to-end autonomous racing system for Assetto Corsa that combines live simulator control, behavioral cloning, Soft Actor-Critic, and transformer-based sequence modeling for continuous vehicle control.
     <br/>

@@ -1,0 +1,6 @@
+# Runtime outputs and lap captures stay local.
+*
+!*/
+!.gitignore
+!**/.gitignore
+!**/.gitkeep

@@ -1,0 +1,6 @@
+# Human driving captures stay local.
+*
+!*/
+!.gitignore
+!**/.gitignore
+!**/.gitkeep

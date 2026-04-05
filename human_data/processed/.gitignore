@@ -1,0 +1,6 @@
+# Processed human datasets stay local.
+*
+!*/
+!.gitignore
+!**/.gitignore
+!**/.gitkeep

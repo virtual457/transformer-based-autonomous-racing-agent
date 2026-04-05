@@ -1,0 +1,6 @@
+# Local collected telemetry/debug data stays local.
+*
+!*/
+!.gitignore
+!**/.gitignore
+!**/.gitkeep

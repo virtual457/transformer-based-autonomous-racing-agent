@@ -1,0 +1,6 @@
+# Collected parquet episodes stay local.
+*
+!*/
+!.gitignore
+!**/.gitignore
+!**/.gitkeep

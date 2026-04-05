@@ -1,0 +1,6 @@
+# Model binaries and replay buffers stay local.
+*
+!*/
+!.gitignore
+!**/.gitignore
+!**/.gitkeep

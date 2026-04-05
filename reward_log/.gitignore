@@ -1,0 +1,6 @@
+# Reward debug logs stay local.
+*
+!*/
+!.gitignore
+!**/.gitignore
+!**/.gitkeep

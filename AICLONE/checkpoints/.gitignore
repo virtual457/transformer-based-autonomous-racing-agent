@@ -1,0 +1,6 @@
+# AICLONE training checkpoints stay local.
+*
+!*/
+!.gitignore
+!**/.gitignore
+!**/.gitkeep

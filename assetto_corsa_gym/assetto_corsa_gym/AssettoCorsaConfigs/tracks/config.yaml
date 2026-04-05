@@ -1,0 +1,81 @@
+ks_barcelona-layout_gp:
+  track_name: ks_barcelona
+  track_configuration: layout_gp
+  track_file: ks_barcelona-layout_gp.csv
+  track_grid_file:
+  ref_lap_file: ks_barcelona-layout_gp-racing_line_fixed.csv
+  TrackLength: 4591.88720703125
+
+monza:
+  track_name: monza
+  track_configuration:
+  track_file: monza.csv
+  track_grid_file:
+  ref_lap_file: monza-racing_line.csv
+  TrackLength: 5758.66064453125
+
+ks_silverstone-gp:
+  track_name: ks_silverstone
+  track_configuration: gp
+  track_file: ks_silverstone-gp.csv
+  track_grid_file:
+  ref_lap_file: ks_silverstone-gp-racing_line.csv
+  TrackLength: 5803.99658203125
+
+ks_red_bull_ring-layout_gp:
+  track_name: ks_red_bull_ring
+  track_configuration: layout_gp
+  track_file: ks_red_bull_ring-layout_gp.csv
+  track_grid_file:
+  ref_lap_file: ks_red_bull_ring-layout_gp-racing_line.csv
+  TrackLength: 4286.78955078125
+
+indianapolis_sp:
+  track_name: indianapolis_sp
+  track_configuration:
+  track_file: indianapolis_sp.csv
+  track_grid_file:
+  ref_lap_file: indianapolis_sp-racing_line.csv
+  TrackLength: 4066.004150390625
+
+china-gp:
+  track_name: china-gp
+  track_configuration:
+  track_file: china-gp.csv
+  track_grid_file:
+  ref_lap_file: china-gp-racing_line.csv
+  TrackLength: 5385.97314453125
+  description: Shanghai International Circuit
+
+imola:
+  track_name: imola
+  track_configuration:
+  track_file: imola.csv
+  track_grid_file:
+  ref_lap_file: imola-racing_line.csv
+  TrackLength: 4864.107421875
+
+ks_laguna_seca:
+  track_name: ks_laguna_seca
+  track_configuration:
+  track_file: ks_laguna_seca.csv
+  track_grid_file:
+  ref_lap_file: ks_laguna_seca-racing_line.csv
+  TrackLength: 3558.725830078125
+
+thunderhill_raceway_park-twomilewest:
+  track_name: thunderhill_raceway_park-twomilewest
+  track_configuration:
+  track_file: thunderhill_raceway_park-twomilewest.csv
+  track_grid_file:
+  ref_lap_file: thunderhill_raceway_park-twomilewest-racing_line.csv
+  TrackLength: 2619.10302734375
+  description: Thunderhill Raceway, west track/2 mile
+
+monaco:
+  track_name: monaco
+  track_configuration:
+  track_file: monaco.csv
+  track_grid_file:
+  ref_lap_file: monaco-racing_line.csv
+  TrackLength: 3290.542236328125

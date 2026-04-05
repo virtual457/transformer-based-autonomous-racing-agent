@@ -1,0 +1,6 @@
+# AICLONE datasets stay local.
+*
+!*/
+!.gitignore
+!**/.gitignore
+!**/.gitkeep

@@ -1,0 +1,6 @@
+# Collected telemetry logs stay local.
+*
+!*/
+!.gitignore
+!**/.gitignore
+!**/.gitkeep

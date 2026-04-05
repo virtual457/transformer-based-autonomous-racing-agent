@@ -1,0 +1,6 @@
+# Raw and processed datasets stay local.
+*
+!*/
+!.gitignore
+!**/.gitignore
+!**/.gitkeep

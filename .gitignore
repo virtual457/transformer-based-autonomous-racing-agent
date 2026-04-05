@@ -1,0 +1,29 @@
+# Local tooling and editor state
+.claude/
+.vscode/
+.idea/
+
+# Python caches
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ipynb_checkpoints/
+.mypy_cache/
+.ruff_cache/
+
+# Local environments
+AssetoCorsa/
+.venv/
+venv/
+env/
+assetto_corsa_gym/.git_backup_root_migration/
+
+# Generated local data
+gym/debug_latest_episode.csv
+
+# OS and scratch files
+.DS_Store
+Thumbs.db
+*.bak
+*.tmp
+*.temp

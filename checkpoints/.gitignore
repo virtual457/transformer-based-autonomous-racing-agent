@@ -1,0 +1,6 @@
+# Training artifacts, tensorboard logs, and replay buffers stay local.
+*
+!*/
+!.gitignore
+!**/.gitignore
+!**/.gitkeep

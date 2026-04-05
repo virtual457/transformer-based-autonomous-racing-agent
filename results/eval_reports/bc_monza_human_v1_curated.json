@@ -1,0 +1,112 @@
+{
+  "checkpoint": "D:\\Git\\virtual457-projects\\AssetoCorsa\\checkpoints\\bc_monza_human_v1\\best.pt",
+  "npz": "D:\\Git\\virtual457-projects\\AssetoCorsa\\human_data\\processed\\monza_ks_mazda_miata_mlp.npz",
+  "n_bins": 10,
+  "samples_per_bin": 100,
+  "steer_range": [
+    -1.0,
+    1.0
+  ],
+  "bins": [
+    {
+      "bin_lo": -1.0,
+      "bin_hi": -0.8,
+      "n_available": 3301,
+      "n_sampled": 100,
+      "true_steer_mean": -0.9879,
+      "pred_steer_mean": -0.9833,
+      "mae": 0.0064,
+      "bias": 0.0046
+    },
+    {
+      "bin_lo": -0.8,
+      "bin_hi": -0.6,
+      "n_available": 581,
+      "n_sampled": 100,
+      "true_steer_mean": -0.6943,
+      "pred_steer_mean": -0.6913,
+      "mae": 0.0106,
+      "bias": 0.003
+    },
+    {
+      "bin_lo": -0.6,
+      "bin_hi": -0.4,
+      "n_available": 993,
+      "n_sampled": 100,
+      "true_steer_mean": -0.4848,
+      "pred_steer_mean": -0.4836,
+      "mae": 0.009,
+      "bias": 0.0012
+    },
+    {
+      "bin_lo": -0.4,
+      "bin_hi": -0.2,
+      "n_available": 1892,
+      "n_sampled": 100,
+      "true_steer_mean": -0.2859,
+      "pred_steer_mean": -0.2821,
+      "mae": 0.0076,
+      "bias": 0.0037
+    },
+    {
+      "bin_lo": -0.2,
+      "bin_hi": 0.0,
+      "n_available": 56200,
+      "n_sampled": 100,
+      "true_steer_mean": -0.0112,
+      "pred_steer_mean": -0.011,
+      "mae": 0.0025,
+      "bias": 0.0002
+    },
+    {
+      "bin_lo": 0.0,
+      "bin_hi": 0.2,
+      "n_available": 84675,
+      "n_sampled": 100,
+      "true_steer_mean": 0.0148,
+      "pred_steer_mean": 0.0141,
+      "mae": 0.0018,
+      "bias": -0.0007
+    },
+    {
+      "bin_lo": 0.2,
+      "bin_hi": 0.4,
+      "n_available": 3248,
+      "n_sampled": 100,
+      "true_steer_mean": 0.2956,
+      "pred_steer_mean": 0.2947,
+      "mae": 0.0052,
+      "bias": -0.0009
+    },
+    {
+      "bin_lo": 0.4,
+      "bin_hi": 0.6,
+      "n_available": 1857,
+      "n_sampled": 100,
+      "true_steer_mean": 0.4822,
+      "pred_steer_mean": 0.4857,
+      "mae": 0.0071,
+      "bias": 0.0035
+    },
+    {
+      "bin_lo": 0.6,
+      "bin_hi": 0.8,
+      "n_available": 954,
+      "n_sampled": 100,
+      "true_steer_mean": 0.7075,
+      "pred_steer_mean": 0.7068,
+      "mae": 0.0075,
+      "bias": -0.0007
+    },
+    {
+      "bin_lo": 0.8,
+      "bin_hi": 1.0,
+      "n_available": 5554,
+      "n_sampled": 100,
+      "true_steer_mean": 0.9872,
+      "pred_steer_mean": 0.9852,
+      "mae": 0.0036,
+      "bias": -0.002
+    }
+  ]
+}

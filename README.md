@@ -42,8 +42,8 @@ The repo currently includes:
 
 - `collectDataAI/` contains agent-side collection scripts.
 - `human_data/` contains human driving collection and preprocessing scripts.
-- `checkpoints/`, `outputs/`, `collected_data/`, and related artifact directories are excluded from version control to keep the repository lightweight.
-- `results/` stores selected evaluation outputs that are useful to keep with the project.
+- `checkpoints/`, `outputs/`, `collected_data/`, and related directories support training runs, logging, and experiment workflows.
+- `results/` stores evaluation outputs and supporting analysis artifacts.
 
 ## High-Level Architecture
 
@@ -81,21 +81,6 @@ The transformer path extends the standard SAC setup by replacing a flat encoder 
 |- ROADMAP.md                Project planning notes
 |- ISSUES.md                 Working issue tracker
 ```
-
-## Tracked vs Local Files
-
-This repository was intentionally cleaned so Git keeps source code, configs, documentation, and selected results, while large generated artifacts stay local.
-
-Ignored locally:
-
-- Python virtual environments such as `AssetoCorsa/`
-- training checkpoints and replay buffers
-- collected telemetry and parquet logs
-- raw and processed driving datasets
-- runtime output folders
-- temporary buffers, caches, and notebook checkpoints
-
-That keeps the GitHub repo usable while still supporting heavy local experimentation.
 
 ## Getting Started
 

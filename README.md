@@ -6,7 +6,7 @@
 <a id="readme-top"></a>
 
 <div align="center">
-  <h3 align="center">Transformer-Based Autonomous Racing Agent</h3>
+  <h3 align="center">🏎️ Transformer-Based Autonomous Racing Agent</h3>
   <p align="center">
     An end-to-end autonomous racing system for Assetto Corsa that combines live simulator control, behavioral cloning, Soft Actor-Critic, and transformer-based sequence modeling for continuous vehicle control.
     <br/>
@@ -318,10 +318,7 @@ transformer-based-autonomous-racing-agent/
 |-- eval/                        Evaluation scripts
 |-- tests/                       Setup and validation scripts
 |-- results/                     Evaluation outputs and reports
-|-- Docs/                        Project proposal and writeups
 |-- report.md                    Technical report
-|-- ROADMAP.md                   Project roadmap
-|-- ISSUES.md                    Active issue tracker
 |-- README.md                    This file
 ```
 
@@ -361,7 +358,7 @@ This project is less about a leaderboard score and more about solving the engine
 - [x] Behavioral cloning preprocessing pipeline
 - [x] Transformer SAC implementation path
 - [x] Evaluation scripts and result tracking
-- [x] Project documentation, report, and issue tracking
+- [x] Project documentation and technical reporting
 
 ### In Progress
 - [ ] Improve training stability and policy quality

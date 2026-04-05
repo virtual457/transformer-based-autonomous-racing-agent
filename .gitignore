@@ -3,6 +3,11 @@
 .vscode/
 .idea/
 
+# Internal planning/docs not meant for the public repo
+Docs/
+ISSUES.md
+ROADMAP.md
+
 # Python caches
 __pycache__/
 *.py[cod]

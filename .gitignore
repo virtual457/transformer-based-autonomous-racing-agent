@@ -3,9 +3,7 @@
 .vscode/
 .idea/
 
-# Internal planning/docs not meant for the public repo
-# (anchored to repo root so per-variant docs/ folders in gym/ are NOT matched)
-/Docs/
+# Internal planning files not meant for the public repo
 /ISSUES.md
 /ROADMAP.md
 

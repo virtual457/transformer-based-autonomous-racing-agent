@@ -172,7 +172,7 @@ dimension.
 
 \begin{figure}[t]
   \centering
-  \includegraphics[width=0.88\linewidth]{figures/architecture.png}
+  \includegraphics[width=0.88\linewidth]{../figures/architecture.png}
   \caption{\textbf{Vector-Q Transformer SAC architecture.} Each frame
   emits a $50$-dim observation token; $75$ tokens stack into a
   $3$-second window. Two independent Transformer encoders (policy and
@@ -362,7 +362,7 @@ channel-specific decisiveness?
 
 \begin{figure}[!h]
   \centering
-  \includegraphics[width=\linewidth]{figures/trajectory.png}
+  \includegraphics[width=\linewidth]{../figures/trajectory.png}
   \caption{\textbf{Speed and brake-zone map for a Vector-Q
   Transformer SAC full-lap evaluation episode on Monza.}
   (a) Trajectory coloured by per-frame speed; the policy reaches
@@ -456,7 +456,7 @@ equal compute.
 
 \begin{figure}[!h]
   \centering
-  \includegraphics[width=0.95\linewidth]{figures/per_channel_alpha.png}
+  \includegraphics[width=0.95\linewidth]{../figures/per_channel_alpha.png}
   \caption{\textbf{Per-channel $\alpha$ auto-tuning reaches distinct
   equilibria on each action channel.}
   (a) $\alpha_c$ over training; the three channels separate into
@@ -491,7 +491,7 @@ all three channels show that this collapse did not occur.
 
 \begin{figure}[!h]
   \centering
-  \includegraphics[width=\linewidth]{figures/q_distribution.png}
+  \includegraphics[width=\linewidth]{../figures/q_distribution.png}
   \caption{\textbf{Per-channel $Q$-value distributions} on held-out
   buffer samples, one histogram per critic head. Each channel shows
   a pronounced bimodality, separating good from bad states.}
@@ -642,7 +642,7 @@ dimension and that no channel has collapsed.
 
 \begin{figure}[h]
   \centering
-  \includegraphics[width=\linewidth]{figures/q_pos_vs_neg.png}
+  \includegraphics[width=\linewidth]{../figures/q_pos_vs_neg.png}
   \caption{\textbf{Per-channel $Q$-value, positive vs negative
   buffer.} Box plots of the learned $Q$-values when the sampled
   transition carries a positive versus a negative per-channel
@@ -665,7 +665,7 @@ channel-specific reward it was trained on.
 
 \begin{figure}[h]
   \centering
-  \includegraphics[width=\linewidth]{figures/q_vs_reward.png}
+  \includegraphics[width=\linewidth]{../figures/q_vs_reward.png}
   \caption{\textbf{Per-channel $Q$-value versus actual per-frame
   reward}, one scatter per critic head. Points cluster into the two
   regimes the stratified buffer was designed to represent, and the

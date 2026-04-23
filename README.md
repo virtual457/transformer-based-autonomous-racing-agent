@@ -14,10 +14,10 @@
 
   <p align="center">
     <a href="https://youtu.be/ZNJG0orcfXg">
-      <img src="https://img.youtube.com/vi/ZNJG0orcfXg/maxresdefault.jpg" alt="Vector-Q Transformer SAC — full lap on Monza (click to watch)" width="720"/>
+      <img src="figures/demo_preview.gif" alt="Vector-Q Transformer SAC — full lap on Monza (click to watch full video)" width="720"/>
     </a>
     <br/>
-    <em>Click to watch: full-lap demo of Vector-Q Transformer SAC on Monza.</em>
+    <em>Click the clip to watch the full-lap demo on YouTube.</em>
   </p>
 
   <p align="center">

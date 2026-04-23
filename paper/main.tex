@@ -63,7 +63,7 @@ must output precise steering, throttle, and brake at $25$\,Hz, reason
 over long horizons in which dense per-frame rewards must accumulate
 into lap-time, and tolerate sensor noise and latency from a commercial
 simulator. The three action channels are physically coupled (braking
-off-line amplifies lateral error; throttling mid-corner induces
+off-line amplifies lateral error, throttling mid-corner induces
 understeer), yet causally distinct: the right brake action may coexist
 with a wrong throttle action, and a scalar joint reward obscures this.
 
@@ -71,7 +71,7 @@ A natural baseline is Soft Actor-Critic (SAC)~[1] with automatic
 temperature tuning~[2]: a scalar $Q$ is trained on a scalar reward and
 a single $\alpha$ regularises the joint policy entropy. We observe
 that this formulation is limiting on our task. A tuned MLP SAC
-baseline trained on Assetto Corsa never completed a lap; its best
+baseline trained on Assetto Corsa never completed a lap. Its best
 episode covered only $27\%$ of Monza.
 
 We propose \textbf{Vector-Q Transformer SAC}, a single-agent SAC
@@ -97,8 +97,8 @@ drives $6.2\times$ further per episode than the baseline at
 $1.4\times$ the mean speed and $2.4\times$ the per-frame reward.
 
 \paragraph{Scope note.}
-An earlier proposal outlined TD3~[3] with an MLP policy at $60$\,Hz;
-early experiments motivated a switch to SAC (stabler under our
+An earlier proposal outlined TD3~[3] with an MLP policy at $60$\,Hz.
+Early experiments motivated a switch to SAC (stabler under our
 reward) and to a Transformer encoder (temporal context was the
 dominant bottleneck), and we standardised on the $25$\,Hz control
 rate the plugin supports without packet loss.
@@ -114,7 +114,7 @@ Assetto Corsa.
 \label{sec:related}
 
 \paragraph{Soft Actor-Critic and auto-tuned temperature.}
-SAC~[1] is an off-policy maximum-entropy actor-critic method; its
+SAC~[1] is an off-policy maximum-entropy actor-critic method whose
 objective balances reward against entropy via a scalar $\alpha$. The
 automatic-tuning extension~[2] drives $\mathbb{E}[\log\pi(a|s)]$
 toward a scalar target entropy $H_\text{target}$, typically
@@ -144,11 +144,11 @@ decomposing credit.
 
 \paragraph{Imitation and advantage-weighted methods.}
 DQfD~[13] injects demonstrations into an off-policy replay buffer for
-$Q$-learning; we follow the same idea adapted to SAC and a
+$Q$-learning, and we follow the same idea adapted to SAC and a
 per-channel stratified buffer. DAgger~[9] motivates correcting
 covariate shift via interactive expert mixing, which we do not
 employ. AWAC~[10] advantage-weights demonstration actions in the
-policy update; we rely on the off-policy SAC gradient to absorb the
+policy update. We rely on the off-policy SAC gradient to absorb the
 injected demonstrations through the critic rather than re-weighting
 the policy loss directly.
 
@@ -160,7 +160,7 @@ strictly the latter: the Transformer replaces SAC's MLP encoder
 without changing the off-policy loss, so the entropy-regularised
 actor-critic guarantees are preserved. Fuchs et al.~[7] trained a
 scalar-$Q$ SAC policy to super-human performance on Gran Turismo
-Sport using large-scale parallel simulation; we share their
+Sport using large-scale parallel simulation. We share their
 observation that reward shaping and a stable replay buffer are
 decisive for lap completion but operate at much smaller scale and
 on a commercial simulator with sensor latency, and we additionally
@@ -174,7 +174,7 @@ dimension.
   \centering
   \includegraphics[width=0.88\linewidth]{../figures/architecture.png}
   \caption{\textbf{Vector-Q Transformer SAC architecture.} Each frame
-  emits a $50$-dim observation token; $75$ tokens stack into a
+  emits a $50$-dim observation token, and $75$ tokens stack into a
   $3$-second window. Two independent Transformer encoders (policy and
   critic, same architecture, different weights) produce a $256$-dim
   embedding. The policy head (left) outputs a diagonal-Gaussian
@@ -189,7 +189,7 @@ dimension.
 \subsection{Problem setting}
 
 The simulator runs at $25$\,Hz. Each tick emits a $62$-dimensional
-state vector; we retain the first $50$ dimensions as a per-frame
+state vector, and we retain the first $50$ dimensions as a per-frame
 observation token $o_t \in \mathbb{R}^{50}$ (car-state channels, ray
 casts to the track boundary, OOT flag, curvature look-ahead,
 past-action history), and stack $W{=}75$ tokens to form
@@ -235,7 +235,7 @@ the actor's output neurons.
 reward and distributes it uniformly across the three output action
 neurons. When the per-channel reward contributions point in opposing
 directions on the same frame, a scalar $Q$ cannot represent "the
-brake head was right, the throttle head was wrong" — both heads
+brake head was right, the throttle head was wrong", so both heads
 receive the same blended signal. Decomposing the critic along the
 action dimension gives each channel its own gradient from its own
 reward.
@@ -303,7 +303,7 @@ over the sequence to yield $h_t \in \mathbb{R}^{256}$. The policy and
 critic encoders are independent copies to prevent joint-embedding
 collapse. The policy head is a two-layer MLP
 $256\!\to\!256\!\to\!6$ producing a diagonal-Gaussian tanh-squashed
-action; each critic head is $(256{+}3)\!\to\!256\!\to\!3$.
+action. Each critic head is $(256{+}3)\!\to\!256\!\to\!3$.
 
 \subsection{Stratified replay with BC demonstration seeding}
 \label{sec:replay}
@@ -325,14 +325,14 @@ $r^c{\le}0$) of capacity $10^5$ windows, giving $6{\times}10^5$
 total. Minibatches sample uniformly from each sub-buffer to counteract
 the positive-reward imbalance on straights. Before training we seed
 the positive sub-buffers with $18{,}497$ pre-collected behavior-cloning
-demonstration windows; this one-time injection sharpens the critic on
+demonstration windows. This one-time injection sharpens the critic on
 the expert racing line without modifying the policy loss. Optimisation
 uses Adam at $3{\times}10^{-4}$, $\gamma{=}0.992$, Polyak
 $\tau{=}0.005$, batch size $256$.
 
 \paragraph{Parameter budget.}
 The full model has $6.6$M parameters, $\approx 97\%$ concentrated in
-the two independent Transformer encoders; the policy and twin-critic
+the two independent Transformer encoders, and the policy and twin-critic
 heads add only $\approx 200$k. A matched MLP SAC with hidden
 $[256,256,256]$ on a single-frame observation has $0.44$M parameters,
 so our encoder accounts for essentially all of the additional capacity
@@ -365,10 +365,11 @@ channel-specific decisiveness?
   \includegraphics[width=\linewidth]{../figures/trajectory.png}
   \caption{\textbf{Speed and brake-zone map for a Vector-Q
   Transformer SAC full-lap evaluation episode on Monza.}
-  (a) Trajectory coloured by per-frame speed; the policy reaches
-  $\sim\!46$\,m/s on the straights and slows to $13$--$20$\,m/s at
-  each chicane. (b) Trajectory coloured by per-frame brake action;
-  braking is sharply concentrated at five to six distinct zones per
+  (a) Trajectory coloured by per-frame speed, where the policy
+  reaches $\sim\!46$\,m/s on the straights and slows to
+  $13$--$20$\,m/s at each chicane. (b) Trajectory coloured by
+  per-frame brake action, where braking is sharply concentrated at
+  five to six distinct zones per
   lap, each aligned with a named Monza corner.}
   \label{fig:traj}
 \end{figure}
@@ -400,7 +401,7 @@ Positive-reward frames (\%)            & $97$         & $97.9$                  
 
 Both policies track the racing line with comparable per-frame
 precision ($\approx 0.5$\,m lateral error) and reach similar top
-speeds on the frames they actually drive; the difference is in
+speeds on the frames they actually drive. The difference is in
 \emph{persistence}. Our variant sustains good driving for much
 longer, yielding $6.2\times$ the distance per episode and completing
 full laps on the majority of evaluation runs. Per-frame reward is
@@ -408,7 +409,7 @@ $2.4\times$
 higher at a comparable positive-frame fraction, indicating the
 policy is selecting higher-value actions on those frames.
 Qualitatively, a full-lap evaluation produces five to six distinct
-brake zones aligned with Monza's named corners; speed peaks near
+brake zones aligned with Monza's named corners, speed peaks near
 $46$\,m/s on the straights and drops to $13$--$20$\,m/s at each
 chicane, and brake application is sharply binary rather than
 modulated (Figure~\ref{fig:traj}). This answers \textbf{Q1}
@@ -429,7 +430,7 @@ channels while negative-sample $Q$ moves by less than $3\%$.
 Evaluated directly on the demonstration set, demo actions had
 $Q$-values statistically indistinguishable from the policy's own
 before injection ($\Delta \approx 0.1\%$ of $Q$ magnitude, effectively
-flat gradient); after injection they are pulled measurably above
+flat gradient). After injection they are pulled measurably above
 policy actions on all channels, giving the actor a usable gradient
 toward the expert line.
 
@@ -459,7 +460,7 @@ equal compute.
   \includegraphics[width=0.95\linewidth]{../figures/per_channel_alpha.png}
   \caption{\textbf{Per-channel $\alpha$ auto-tuning reaches distinct
   equilibria on each action channel.}
-  (a) $\alpha_c$ over training; the three channels separate into
+  (a) $\alpha_c$ over training, where the three channels separate into
   a clear ordering
   $\alpha_\mathrm{brake} \gg \alpha_\mathrm{throttle} \gg \alpha_\mathrm{steer}$,
   with $\alpha_\mathrm{steer}$ pinned near the clamp floor.
@@ -486,7 +487,7 @@ channel dominates the critic's discriminative power. A naive
 vector-$Q$ can collapse into a degenerate regime in which one head
 captures nearly all of the learning signal and the others remain
 close to random (a failure mode in which vector-$Q$ behaves as a
-scalar-$Q$ in disguise); our observed $4.7$--$4.8\times$ ratios on
+scalar-$Q$ in disguise). Our observed $4.7$--$4.8\times$ ratios on
 all three channels show that this collapse did not occur.
 
 \begin{figure}[!h]
@@ -522,7 +523,7 @@ precision.
 \paragraph{Limitations.}
 The policy is not yet perfect at the Variante della Roggia chicane
 when approached at race pace, behaving well elsewhere but
-under-braking here; we expect further training with a more diverse
+under-braking here. We expect further training with a more diverse
 set of examples at that corner to close the gap.
 
 \paragraph{Reward-sensitive automatic $\alpha$ tuning (primary future work).}

@@ -184,8 +184,8 @@ class PolicyHead(nn.Module):
         Parameters
         ----------
         embedding : torch.Tensor, shape (B, d_model)
-            Should be detached from the encoder graph so the policy gradient
-            does not flow back into the encoder weights.
+            May be live (policy update path, gradients flow into policy_encoder)
+            or detached (critic update path).  The caller controls detachment.
 
         Returns
         -------

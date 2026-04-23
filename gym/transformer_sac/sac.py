@@ -226,6 +226,9 @@ class TransformerSAC:
         # Clamp tokens to [-3, 3] for stability (same as flat SAC).
         x = x.clamp(-3.0, 3.0)
 
+        # Switch to eval mode so any future dropout/BN behaves correctly at inference.
+        self.policy_encoder.eval()
+        self.policy_head.eval()
         with torch.no_grad():
             embedding = self.policy_encoder(x)               # (1, d_model)
             if deterministic:
@@ -233,6 +236,8 @@ class TransformerSAC:
                 action = mean_action
             else:
                 action, _, _ = self.policy_head(embedding)
+        self.policy_encoder.train()
+        self.policy_head.train()
 
         return action.squeeze(0).cpu().numpy()
 
@@ -303,6 +308,9 @@ class TransformerSAC:
         # 2. Q-network update (critic_encoder + twin_q)
         # ------------------------------------------------------------------
         obs_emb = self.critic_encoder(obs_seq)     # (B, d_model) — gradient flows into critic_encoder
+        # Detach before backward so the data survives graph release and can be
+        # reused in step 3 without a second encoder forward pass.
+        obs_emb_critic_det = obs_emb.detach()
         q1, q2  = self.twin_q(obs_emb, action)
         q1_loss = F.mse_loss(q1, q_target)
         q2_loss = F.mse_loss(q2, q_target)
@@ -323,10 +331,9 @@ class TransformerSAC:
         obs_emb_policy = self.policy_encoder(obs_seq)  # (B, d_model)
 
         new_action, log_prob, _ = self.policy_head(obs_emb_policy)
-        # Q-value for the new action (through critic_encoder — detach so critic
-        # is not inadvertently trained by the policy loss).
-        with torch.no_grad():
-            obs_emb_critic_det = self.critic_encoder(obs_seq)
+        # Q-value for the new action: reuse the detached critic embedding saved
+        # above — avoids a redundant encoder forward pass while still preventing
+        # the policy loss from flowing gradients into critic_encoder.
         q1_new, q2_new = self.twin_q(obs_emb_critic_det, new_action)
         min_q_new = torch.min(q1_new, q2_new)
 
@@ -350,9 +357,10 @@ class TransformerSAC:
         alpha_loss.backward()
         self.alpha_optimizer.step()
 
-        # Cap alpha at 1.0: clamp log_alpha <= 0  =>  alpha = exp(log_alpha) <= 1.0
+        # Keep alpha in [~0.007, 1.0]: floor (min=-5.0) allows near-deterministic
+        # convergence; cap (max=0.0, alpha<=1.0) prevents tanh saturation.
         with torch.no_grad():
-            self.log_alpha.clamp_(max=0.0)
+            self.log_alpha.clamp_(min=-5.0, max=0.0)
 
         # ------------------------------------------------------------------
         # 5. Soft-update target encoder and target Q-heads

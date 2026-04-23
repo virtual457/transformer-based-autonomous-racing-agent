@@ -86,7 +86,7 @@ OBS_CHANNEL_SCALES = {
     "SlipAngle_fr":       25.0,
     "SlipAngle_rl":       25.0,
     "SlipAngle_rr":       25.0,
-    "steerAngle":         450.0,
+    "steerAngle":         504.0,
 }
 
 BASIC_DIM = len(OBS_ENABLED_CHANNELS) + NUM_SENSORS   # 25
@@ -100,7 +100,7 @@ OBS_DIM = (
 )  # = 125
 
 # ── Action constants ───────────────────────────────────────────────────────────
-STEER_MAX = 302.4   # degrees — from steer_map.csv (x=1.0 → y=302.4)
+STEER_MAX = 504.0   # degrees — physical lock-to-lock measured in-game (ks_mazda_miata)
 
 # ── Track → racing-line CSV mapping ───────────────────────────────────────────
 # Key: track name as it appears in episode_meta.json
@@ -198,14 +198,14 @@ def build_obs(state: dict, history: list, ref_lap: ReferenceLap,
     # 4. Past actions (9) — warm-start with current action if history is short
     steer_scale = OBS_CHANNEL_SCALES["steerAngle"]
     cur_steer = state["steerAngle"] / steer_scale
-    cur_pedal = state["accStatus"]
-    cur_brake = state["brakeStatus"]
+    cur_pedal = state["accStatus"]   * 2.0 - 1.0   # [0,1] → [-1,1]
+    cur_brake = state["brakeStatus"] * 2.0 - 1.0   # [0,1] → [-1,1]
 
     if len(history) < PAST_ACTIONS_WINDOW:
         n_missing = PAST_ACTIONS_WINDOW - len(history)
         steer_slots = [cur_steer] * n_missing + [h["steerAngle"] / steer_scale for h in history]
-        pedal_slots = [cur_pedal] * n_missing + [h["accStatus"]               for h in history]
-        brake_slots = [cur_brake] * n_missing + [h["brakeStatus"]             for h in history]
+        pedal_slots = [cur_pedal] * n_missing + [h["accStatus"]   * 2.0 - 1.0 for h in history]
+        brake_slots = [cur_brake] * n_missing + [h["brakeStatus"] * 2.0 - 1.0 for h in history]
         obs = np.hstack([obs,
                          np.array(steer_slots, dtype=np.float32),
                          np.array(pedal_slots, dtype=np.float32),
@@ -214,8 +214,8 @@ def build_obs(state: dict, history: list, ref_lap: ReferenceLap,
         past = history[-PAST_ACTIONS_WINDOW:]
         obs = np.hstack([obs,
                          [h["steerAngle"] / steer_scale for h in past],
-                         [h["accStatus"]               for h in past],
-                         [h["brakeStatus"]             for h in past]])
+                         [h["accStatus"]   * 2.0 - 1.0 for h in past],
+                         [h["brakeStatus"] * 2.0 - 1.0 for h in past]])
 
     # 5. Current action (3)
     obs = np.hstack([obs, cur_steer, cur_pedal, cur_brake])
@@ -234,24 +234,17 @@ def build_obs(state: dict, history: list, ref_lap: ReferenceLap,
     return obs.astype(np.float32)
 
 
-# ── Action extraction (SAC policy space [0, 1]) ────────────────────────────────
+# ── Action extraction (SAC policy space [-1, 1]) ───────────────────────────────
 #
-# How the SAC action becomes an AC control (via our_env → VJoyControl → car_control):
+# SAC outputs actions directly in [-1, 1] (absolute, no map_action remapping).
+# map_action has been removed from our_env.py — SAC output goes straight to ac_env.
 #
-#   map_action (vjoy.py):    ac_cmd  = sac * 2 - 1          [-1, 1]
-#   car_control.py steer:    axis    = ac_cmd + 1            [0, 2]
-#   car_control.py acc/brake: axis   = (ac_cmd + 1) / 2     [0, 1]
+# Inverting raw telemetry to SAC space:
+#   steer  → sac = steerAngle / STEER_MAX                   [-1, 1]  0 = straight
+#   pedal  → sac = accStatus * 2 - 1                        [-1, 1]  -1 = no throttle
+#   brake  → sac = brakeStatus * 2 - 1                      [-1, 1]  -1 = no brake
 #
-# Inverting:
-#   steer  → steerAngle = (sac * 2) * STEER_MAX
-#           → sac = (steerAngle / STEER_MAX + 1) / 2        [0, 1]  0.5 = straight
-#   pedal  → accStatus  = sac  (clamped to [0,1])
-#           → sac = accStatus                                [0, 1]
-#   brake  → brakeStatus = sac  (clamped to [0,1])
-#           → sac = brakeStatus                              [0, 1]  0 = no brake
-#
-# NOTE: brake_map is NOT used here. It was the old BC convention.  The SAC
-# expects brake targets in [0,1] where 0 = no brake and 1 = full brake.
+# NOTE: brake_map is NOT used here. It was the old BC convention.
 
 def extract_action(state: dict, brake_map: BrakeMap) -> np.ndarray:  # brake_map kept for API compat
     """
@@ -260,11 +253,11 @@ def extract_action(state: dict, brake_map: BrakeMap) -> np.ndarray:  # brake_map
         steer  = clip((steerAngle / STEER_MAX + 1) / 2, 0, 1)
                  0 = full left, 0.5 = straight, 1 = full right
         pedal  = clip(accStatus, 0, 1)      — throttle [0,1] directly
-        brake  = clip(brakeStatus, 0, 1)    — brake [0,1] directly  (0 = none)
+        brake  = brakeStatus * 2 - 1        — brake [-1,1]  -1 = none, +1 = full
     """
-    steer = float(np.clip((state["steerAngle"] / STEER_MAX + 1.0) / 2.0, 0.0, 1.0))
-    pedal = float(_clamp(state["accStatus"],   0.0, 1.0))
-    brake = float(_clamp(state["brakeStatus"], 0.0, 1.0))
+    steer = float(np.clip(state["steerAngle"] / STEER_MAX, -1.0, 1.0))
+    pedal = float(np.clip(state["accStatus"]   * 2.0 - 1.0, -1.0, 1.0))
+    brake = float(np.clip(state["brakeStatus"] * 2.0 - 1.0, -1.0, 1.0))
     return np.array([steer, pedal, brake], dtype=np.float32)
 
 

@@ -407,11 +407,15 @@ class SACAgent:
             # carry over and trigger a false positive on the next episode.
             _pos_window: collections.deque = collections.deque(maxlen=_stat_frames)
 
-            # Warmup: full throttle for 3.5-7 seconds (87-175 steps at 25Hz), randomly picked per episode.
+            # Warmup: straight, full throttle, no brake for ~6-10 s.
+            # AC control space is [-1, +1] per VJoyControl.neutralize:
+            #   steer=0 straight, throttle=+1 full, brake=-1 off.
+            # Historical value [0.5, 1.0, 0.0] was wrong on both steer
+            # (half-right) and brake (half-pressed).
             # Frames not added to buffer — transitions are discarded.
             _warmup_steps = random.randint(150, 250)
             for _ in range(_warmup_steps):
-                obs, _, done, _ = self.env.step(np.array([0.5, 1.0, 0.0], dtype=np.float32))
+                obs, _, done, _ = self.env.step(np.array([0.0, 1.0, -1.0], dtype=np.float32))
                 self.env._read_latest_state()
 
             # ── Latency-overlap episode loop ───────────────────────────────────

@@ -117,7 +117,7 @@ OBS_CHANNEL_SCALES = {
     "SlipAngle_fr":      25.0,
     "SlipAngle_rl":      25.0,
     "SlipAngle_rr":      25.0,
-    "steerAngle":        450,      # must match ac_env.py obs_channels_info['steerAngle']
+    "steerAngle":        504,      # physical lock-to-lock measured in-game (ks_mazda_miata)
 }
 
 # 125 = 14 + 11 + 1 + 12 + 9 + 3 + 75
@@ -189,16 +189,16 @@ def build_obs(state: dict, history: List[dict], ref_lap: ReferenceLap,
     # Fix 1).
     steer_scale = OBS_CHANNEL_SCALES["steerAngle"]
     cur_steer  = state["steerAngle"] / steer_scale
-    cur_pedal  = state["accStatus"]
-    cur_brake  = state["brakeStatus"]
+    cur_pedal  = state["accStatus"]   * 2.0 - 1.0   # [0,1] → [-1,1]
+    cur_brake  = state["brakeStatus"] * 2.0 - 1.0   # [0,1] → [-1,1]
 
     if len(history) < PAST_ACTIONS_WINDOW:
         n_missing = PAST_ACTIONS_WINDOW - len(history)
         # Build the full PAST_ACTIONS_WINDOW-length lists by prepending the
         # current action for every missing slot, then appending real history.
         steer_slots = [cur_steer] * n_missing + [h["steerAngle"] / steer_scale for h in history]
-        pedal_slots = [cur_pedal] * n_missing + [h["accStatus"]               for h in history]
-        brake_slots = [cur_brake] * n_missing + [h["brakeStatus"]             for h in history]
+        pedal_slots = [cur_pedal] * n_missing + [h["accStatus"]   * 2.0 - 1.0 for h in history]
+        brake_slots = [cur_brake] * n_missing + [h["brakeStatus"] * 2.0 - 1.0 for h in history]
         obs = np.hstack([obs,
                          np.array(steer_slots, dtype=np.float32),
                          np.array(pedal_slots, dtype=np.float32),
@@ -208,8 +208,8 @@ def build_obs(state: dict, history: List[dict], ref_lap: ReferenceLap,
         obs = np.hstack([
             obs,
             [h["steerAngle"] / steer_scale for h in past],
-            [h["accStatus"]               for h in past],
-            [h["brakeStatus"]             for h in past],
+            [h["accStatus"]   * 2.0 - 1.0 for h in past],
+            [h["brakeStatus"] * 2.0 - 1.0 for h in past],
         ])                                                              # (47,)
 
     # 5. Current action

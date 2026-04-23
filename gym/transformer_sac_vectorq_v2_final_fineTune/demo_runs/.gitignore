@@ -1,0 +1,6 @@
+# Fine-tune demo run telemetry and videos stay local.
+*
+!*/
+!.gitignore
+!**/.gitignore
+!**/.gitkeep

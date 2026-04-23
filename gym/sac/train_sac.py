@@ -116,6 +116,17 @@ def build_env(config_path: str, work_dir: str):
         f"config.yml at {config_path} is missing 'OurEnv' block"
     )
 
+    # In-memory overrides — config.yml on disk stays at its Vector-Q-pipeline
+    # values.  These reconstruct the 125-dim obs shape the baseline SAC
+    # checkpoints were trained against.  Action semantics are left as the
+    # config.yml default (absolute, use_relative_actions=False).
+    cfg.AssettoCorsa.add_previous_obs_to_state = True
+    cfg.AssettoCorsa.use_target_speed          = False
+    logger.info(
+        "Env config overrides (in-memory only — config.yml on disk untouched): "
+        "add_previous_obs_to_state=True, use_target_speed=False"
+    )
+
     os.makedirs(work_dir, exist_ok=True)
     ac_env = make_ac_env(cfg=cfg, work_dir=work_dir)
     logger.info(

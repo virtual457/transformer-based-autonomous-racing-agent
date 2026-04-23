@@ -40,6 +40,11 @@ logger = logging.getLogger(__name__)
 CRASH_BRAKE_DURATION_S = 5.0
 CRASH_CONTROL_HZ = 25
 
+# Scale factor applied to ref_lap target speeds at runtime.
+# 0.9 = agent targets 90% of the racing line speed (conservative margin).
+# Original ref_lap data is never modified.
+TARGET_SPEED_SCALE = 0.9
+
 
 def _timestamp() -> str:
     return datetime.now().strftime("%Y%m%d_%H%M%S_%f")[:-3]
@@ -129,6 +134,7 @@ class OurEnv:
 
         # -- Per-episode state --
         self._prev_lap_dist: float = 0.0
+        self._prev_speed_ms: float = 0.0
         self._prev_action: np.ndarray = np.zeros(3, dtype=np.float32)
         self._pending_action: np.ndarray = np.zeros(3, dtype=np.float32)
         self._off_track_count: int = 0
@@ -153,6 +159,7 @@ class OurEnv:
             self._track_length = float(self.env.track_length)
 
         self._prev_lap_dist = self._get_lap_dist()
+        self._prev_speed_ms = 0.0
         self._prev_action = np.zeros(3, dtype=np.float32)
         self._off_track_count = 0
         self._step_in_episode = 0
@@ -171,23 +178,22 @@ class OurEnv:
         """
         Send action to AC immediately (non-blocking).
 
-        Maps from policy space [0, 1]^3 to AC space, writes to vJoy, and
-        stashes both the mapped AC action and the original policy-space action
-        so the subsequent step(action=None) call can correctly compute reward.
+        Expects action in AC space [-1, 1]^3 (SAC tanh output — no remapping).
+        Stashes the action so the subsequent step(action=None) call can
+        correctly compute the reward.
 
         This is the first half of the latency-overlap split:
             env.set_actions(action)   # fires immediately — ~0.1 ms
             # ... CPU work overlaps with AC's 40 ms physics tick ...
             env.step(action=None)     # waits for next UDP frame
         """
-        ac_action = self.control.map_action(action)
-        self.env.set_actions(ac_action)
+        self.env.set_actions(action)
         # Stash for the reward computation in the matching step(action=None) call.
         self._pending_action = np.array(action, dtype=np.float32)
 
     def step(self, action: Optional[np.ndarray]):
         """
-        action : np.ndarray (3,) in POLICY space [0,1], or None
+        action : np.ndarray (3,) in AC space [-1,1] (SAC tanh output), or None
             [steering, throttle, brake]
 
         When action is None the caller must have already called set_actions()
@@ -207,21 +213,34 @@ class OurEnv:
             effective_action = self._pending_action
             obs, _their_reward, done, info = self.env.step(action=None)
         else:
-            # Normal (non-overlap) path: map, send, and wait in one call.
+            # Normal (non-overlap) path: send and wait in one call.
             effective_action = np.array(action, dtype=np.float32)
-            ac_action = self.control.map_action(effective_action)
-            obs, _their_reward, done, info = self.env.step(ac_action)
+            obs, _their_reward, done, info = self.env.step(effective_action)
 
         telem = self.telemetry.parse(self.env.state)
         if (self.env.ref_lap is not None
                 and getattr(self.env.ref_lap, 'use_target_speed', False)):
             telem.target_speed_ms = float(
                 self.env.ref_lap.get_target_speed_value(telem.lap_dist)
-            )
+            ) * TARGET_SPEED_SCALE
+        if self.env.ref_lap is not None:
+            try:
+                import numpy as _np, math as _math
+                _yaw_idx  = self.env.ref_lap.channels_dist.index("yaw")
+                _line_yaw = float(_np.interp(
+                    telem.lap_dist,
+                    self.env.ref_lap.distance_ch_dist,
+                    self.env.ref_lap.td[:, _yaw_idx],
+                ))
+                _car_yaw  = float(self.env.state.get("yaw", 0.0))
+                telem.yaw_error_rad = (_car_yaw - _line_yaw + _math.pi) % (2 * _math.pi) - _math.pi
+            except Exception:
+                pass
         result = self.reward.compute(
             telem, effective_action, self._prev_action,
             self._prev_lap_dist,
             self._track_length or 5793.0,
+            prev_speed_ms=self._prev_speed_ms,
         )
 
         if telem.out_of_track:
@@ -236,6 +255,7 @@ class OurEnv:
 
         self._prev_action = effective_action
         self._prev_lap_dist = telem.lap_dist
+        self._prev_speed_ms = telem.speed_ms
 
         # -- Reward truth log --
         gap_m_abs = abs(telem.gap_m)
@@ -264,6 +284,7 @@ class OurEnv:
             self.reward_logger.flush()
 
         info["reward_components"] = result["components"]
+        info["reward_metrics"]    = result["metrics"]
         info["telem"] = telem
         # Expose raw state so policies (e.g. MathPolicy) can read telemetry fields
         # like NormalizedSplinePosition, world_position_x/y, yaw, speed.
@@ -409,6 +430,7 @@ class OurEnv:
 
             telem = self.telemetry.parse(self.env.state)
             self._prev_lap_dist = telem.lap_dist
+            self._prev_speed_ms = telem.speed_ms
 
             info = dict(buf_infos)
             info["telem"] = telem
@@ -496,11 +518,25 @@ class OurEnv:
                     and getattr(self.env.ref_lap, 'use_target_speed', False)):
                 telem.target_speed_ms = float(
                     self.env.ref_lap.get_target_speed_value(telem.lap_dist)
-                )
+                ) * TARGET_SPEED_SCALE
+            if self.env.ref_lap is not None:
+                try:
+                    import numpy as _np, math as _math
+                    _yaw_idx  = self.env.ref_lap.channels_dist.index("yaw")
+                    _line_yaw = float(_np.interp(
+                        telem.lap_dist,
+                        self.env.ref_lap.distance_ch_dist,
+                        self.env.ref_lap.td[:, _yaw_idx],
+                    ))
+                    _car_yaw  = float(self.env.state.get("yaw", 0.0))
+                    telem.yaw_error_rad = (_car_yaw - _line_yaw + _math.pi) % (2 * _math.pi) - _math.pi
+                except Exception:
+                    pass
             result = self.reward.compute(
                 telem, action, self._prev_action,
                 self._prev_lap_dist,
                 self._track_length or 5793.0,
+                prev_speed_ms=self._prev_speed_ms,
             )
             if telem.out_of_track:
                 self._off_track_count += 1
@@ -511,6 +547,7 @@ class OurEnv:
 
             self._prev_action = np.array(action, dtype=np.float32)
             self._prev_lap_dist = telem.lap_dist
+            self._prev_speed_ms = telem.speed_ms
 
             # -- Reward truth log (collect_episode path) --
             _cep_step = len(obs_list) + 1  # 1-based; obs_list not yet appended
@@ -542,6 +579,7 @@ class OurEnv:
 
             info = dict(buf_infos)
             info["reward_components"] = result["components"]
+            info["reward_metrics"]    = result["metrics"]
             info["telem"] = telem
             info.update(self.env.state)
             reward = float(result["total"])

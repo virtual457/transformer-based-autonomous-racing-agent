@@ -83,35 +83,37 @@ def recv_latest_state(sock):
     return eval(msg)   # AC plugin sends Python dict literals
 
 
-def render(state, step, fps):
-    steer  = float(state.get("steerAngle",  0.0))   # degrees, ±450
+def render(state, step, fps, steer_min, steer_max):
+    steer  = float(state.get("steerAngle",  0.0))   # degrees, raw
     acc    = float(state.get("accStatus",   0.0))   # 0–1
     brake  = float(state.get("brakeStatus", 0.0))   # 0–1
     speed  = float(state.get("speed",       0.0)) * 3.6   # m/s → km/h
     gear   = int(  state.get("actualGear",  0))
     nsp    = float(state.get("NormalizedSplinePosition", 0.0))
 
-    steer_pct = steer / 450.0   # normalised −1…+1
-
     steer_c = RED if abs(steer) > 300 else (YELLOW if abs(steer) > 150 else GREEN)
     acc_c   = GREEN if acc > 0.05 else DIM
     brake_c = RED   if brake > 0.05 else DIM
 
+    direction = f"{RED}◄ LEFT {RESET}" if steer < -5 else (f"{GREEN} RIGHT ►{RESET}" if steer > 5 else f"{DIM}CENTER{RESET}")
+
     lines = [
         f"{BOLD}{CYAN}══ AC Controls Monitor  step={step:6d}  fps={fps:5.1f} ══{RESET}",
         "",
-        f"{BOLD}STEER{RESET}    {steer_c}{steer:+8.1f} deg{RESET}  ({steer_pct:+.3f} norm)",
+        f"{BOLD}STEER{RESET}    {steer_c}{steer:+8.1f} deg (raw){RESET}   {direction}",
         f"         {bar(steer, -450, 450)}",
+        f"         {DIM}session min={steer_min:+.1f} deg   max={steer_max:+.1f} deg   "
+        f"observed range={abs(steer_min - steer_max):.1f} deg{RESET}",
         "",
-        f"{BOLD}THROTTLE{RESET} {acc_c}{acc:8.3f}{RESET}",
+        f"{BOLD}THROTTLE{RESET} {acc_c}{acc:8.3f} (raw 0–1){RESET}",
         f"         {bar(acc, 0, 1)}",
         "",
-        f"{BOLD}BRAKE{RESET}    {brake_c}{brake:8.3f}{RESET}",
+        f"{BOLD}BRAKE{RESET}    {brake_c}{brake:8.3f} (raw 0–1){RESET}",
         f"         {bar(brake, 0, 1)}",
         "",
         f"{DIM}speed={speed:.1f} km/h   gear={gear}   nsp={nsp:.4f}{RESET}",
         "",
-        f"{DIM}Ctrl+C to exit{RESET}",
+        f"{DIM}Steer to full lock both ways to find physical max.  Ctrl+C to exit{RESET}",
     ]
     return "\n".join(lines)
 
@@ -137,9 +139,11 @@ def main():
     sock.settimeout(2.0)
     print(f"Drained {drained} stale packets. Now live.")
 
-    step = 0
-    fps  = 0.0
-    t_last = time.perf_counter()
+    step       = 0
+    fps        = 0.0
+    t_last     = time.perf_counter()
+    steer_min  =  9999.0
+    steer_max  = -9999.0
 
     try:
         while True:
@@ -154,7 +158,11 @@ def main():
             t_last = now
             step  += 1
 
-            sys.stdout.write(CLEAR + render(state, step, fps) + "\n")
+            steer = float(state.get("steerAngle", 0.0))
+            steer_min = min(steer_min, steer)
+            steer_max = max(steer_max, steer)
+
+            sys.stdout.write(CLEAR + render(state, step, fps, steer_min, steer_max) + "\n")
             sys.stdout.flush()
 
     except KeyboardInterrupt:

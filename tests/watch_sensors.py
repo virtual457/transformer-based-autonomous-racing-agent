@@ -18,6 +18,7 @@ Press Ctrl+C to exit cleanly.
 import sys
 import os
 import time
+import math
 import argparse
 import logging
 
@@ -80,7 +81,11 @@ def render(state: dict, step: int, fps: float, show_raw: bool):
 
     add(f"{BOLD}── CAR DYNAMICS ──────────────────────────────────────────────{RESET}")
     c = _color_value(speed_kh, 0, 200)
+    target_speed_ms = float(state.get("_target_speed_ms", 0.0))
+    target_speed_kh = target_speed_ms * 3.6
     add(f"  Speed        {c}{speed_kh:7.1f} km/h{RESET}  {speed:6.2f} m/s   {_bar(speed, 0, 80)}")
+    tc = _color_value(abs(speed_kh - target_speed_kh), 0, 30, warn_hi=20.0)
+    add(f"  Target speed {tc}{target_speed_kh:7.1f} km/h{RESET}  {target_speed_ms:6.2f} m/s   diff={speed_kh - target_speed_kh:+.1f} km/h")
     c = _color_value(abs(gap), 0, 5, warn_hi=3.0)
     add(f"  Gap (RL)     {c}{gap:+8.3f} m{RESET}    (+ = right of line)")
     add(f"  AccelX (lon) {YELLOW}{accelX:+7.2f} g{RESET}    (+ = braking)")
@@ -151,6 +156,9 @@ def render(state: dict, step: int, fps: float, show_raw: bool):
     add(f"  LapDist      {WHITE}{lap_dist:8.1f} m{RESET}   NSP={nsp:.4f}   Lap#{lap_cnt}")
     add(f"  World XY     ({wx:9.2f}, {wy:9.2f})")
     add(f"  Yaw          {WHITE}{yaw:+8.3f} rad{RESET}  ({yaw * 57.296:+7.2f} deg)")
+    yaw_err_deg = float(state.get("_yaw_error_deg", 0.0))
+    yaw_c = RED if abs(yaw_err_deg) > 45 else (YELLOW if abs(yaw_err_deg) > 20 else GREEN)
+    add(f"  Yaw error    {yaw_c}{yaw_err_deg:+8.2f} deg{RESET}  (car vs racing line heading)")
     oot_c = RED if oot else GREEN
     add(f"  Out of track {oot_c}{'YES  ⚠' if oot else 'no':6s}{RESET}  tyres_out={n_oot}/4")
     add("")
@@ -296,6 +304,31 @@ def main():
             t_after_expand = time.perf_counter()
 
             state = ac_env.state
+
+            # Target speed from racing line
+            try:
+                if getattr(ac_env.ref_lap, 'use_target_speed', False):
+                    state["_target_speed_ms"] = float(
+                        ac_env.ref_lap.get_target_speed_value(float(state.get("LapDist", 0.0)))
+                    )
+            except Exception:
+                pass
+
+            # Relative yaw: car heading vs racing-line heading at current LapDist
+            try:
+                import numpy as _np
+                _lap_dist  = float(state.get("LapDist", 0.0))
+                _car_yaw   = float(state.get("yaw", 0.0))
+                _yaw_idx   = ac_env.ref_lap.channels_dist.index("yaw")
+                _line_yaw  = float(_np.interp(
+                    _lap_dist,
+                    ac_env.ref_lap.distance_ch_dist,
+                    ac_env.ref_lap.td[:, _yaw_idx],
+                ))
+                _yaw_err   = (_car_yaw - _line_yaw + math.pi) % (2 * math.pi) - math.pi
+                state["_yaw_error_deg"] = math.degrees(_yaw_err)
+            except Exception:
+                state["_yaw_error_deg"] = 0.0
 
             wait_ms    = (t_after_recv   - t_recv)        * 1000
             compute_ms = (t_after_expand - t_after_recv)  * 1000

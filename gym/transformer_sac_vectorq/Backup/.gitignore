@@ -1,0 +1,6 @@
+# Legacy checkpoint backups stay local.
+*
+!*/
+!.gitignore
+!**/.gitignore
+!**/.gitkeep

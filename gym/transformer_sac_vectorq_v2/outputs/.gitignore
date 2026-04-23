@@ -1,0 +1,6 @@
+# Training curves and per-episode run outputs stay local.
+*
+!*/
+!.gitignore
+!**/.gitignore
+!**/.gitkeep

@@ -4,9 +4,10 @@
 .idea/
 
 # Internal planning/docs not meant for the public repo
-Docs/
-ISSUES.md
-ROADMAP.md
+# (anchored to repo root so per-variant docs/ folders in gym/ are NOT matched)
+/Docs/
+/ISSUES.md
+/ROADMAP.md
 
 # Python caches
 __pycache__/
@@ -22,6 +23,41 @@ AssetoCorsa/
 venv/
 env/
 assetto_corsa_gym/.git_backup_root_migration/
+
+# LaTeX build artifacts
+*.aux
+*.log
+*.out
+*.synctex.gz
+*.fls
+*.fdb_latexmk
+*.toc
+*.bbl
+*.blg
+*.nav
+*.snm
+*.vrb
+
+# Compiled paper / presentation
+# main.pdf is the submission artifact — keep tracked
+# Deep Learning.pptx is 127 MB (> GitHub's 100 MB hard limit) — host externally
+Deep Learning.pptx
+*.pptx
+
+# Large model / buffer / video artifacts (defense-in-depth across all subfolders)
+**/checkpoints/*.pt
+**/checkpoints/buffer_*.npz
+**/checkpoints/buffers/
+**/checkpoints/*.dat
+**/Backup/*.pt
+**/Backup/buffer_*.npz
+**/demo_runs/**/*.mp4
+**/outputs/train_curves_*.png
+**/outputs/**/laps/*.parquet
+
+# Standalone video captures
+videos/
+*.mp4
 
 # Generated local data
 gym/debug_latest_episode.csv

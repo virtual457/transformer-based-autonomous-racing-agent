@@ -61,7 +61,7 @@ AID_DAMAGE       = 0    # DAMAGE:             0=off, 1=normal mechanical damage
 PLUGIN_HOST          = "127.0.0.1"
 PLUGIN_EGO_PORT      = 2345     # ego_server (UDP)
 PLUGIN_MGMT_PORT     = 2347     # simulation_management_server (TCP)
-PLUGIN_READY_TIMEOUT = 120      # seconds to wait for plugin after launch
+PLUGIN_READY_TIMEOUT = 600      # seconds to wait for plugin after launch
 PLUGIN_POLL_INTERVAL = 3        # seconds between readiness polls
 
 # AC shared memory status codes
@@ -118,12 +118,16 @@ def _read_ac_graphics() -> dict | None:
 
 _user32 = ctypes.windll.user32
 
-_VK_RETURN = 0x0D
-_VK_SPACE  = 0x20
-_VK_ESCAPE = 0x1B
+_VK_RETURN  = 0x0D
+_VK_SPACE   = 0x20
+_VK_ESCAPE  = 0x1B
+_VK_CONTROL = 0x11
+_VK_C       = 0x43
 
 _WM_KEYDOWN = 0x0100
 _WM_KEYUP   = 0x0101
+
+_KEYEVENTF_KEYUP = 0x0002
 
 _MOUSEEVENTF_LEFTDOWN = 0x0002
 _MOUSEEVENTF_LEFTUP   = 0x0004
@@ -192,6 +196,35 @@ def _send_mouse_click_to_ac() -> bool:
         _user32.mouse_event(_MOUSEEVENTF_LEFTUP,   0, 0, 0, 0)
         logger.info("  Click %d/3 at (%d, %d)", i + 1, click_x, click_y)
         time.sleep(1.0)
+    return True
+
+
+def _send_ctrl_c_to_ac() -> bool:
+    """
+    Bring the AC window to the foreground and send a Ctrl+C keypress.
+
+    Used to toggle AI autopilot mode on/off.  Returns True if the window
+    was found and the keypress was dispatched.
+    """
+    hwnd = _find_ac_window()
+    if not hwnd:
+        logger.warning("_send_ctrl_c_to_ac: AC window not found (FindWindowW returned 0).")
+        return False
+
+    logger.info("_send_ctrl_c_to_ac: hwnd=%s — sending Ctrl+C", hex(hwnd))
+    _user32.ShowWindow(hwnd, _SW_RESTORE)
+    _user32.SetForegroundWindow(hwnd)
+    time.sleep(0.3)
+
+    _user32.keybd_event(_VK_CONTROL, 0, 0, 0)            # Ctrl down
+    time.sleep(0.05)
+    _user32.keybd_event(_VK_C, 0, 0, 0)                  # C down
+    time.sleep(0.05)
+    _user32.keybd_event(_VK_C, 0, _KEYEVENTF_KEYUP, 0)   # C up
+    time.sleep(0.05)
+    _user32.keybd_event(_VK_CONTROL, 0, _KEYEVENTF_KEYUP, 0)  # Ctrl up
+
+    logger.info("_send_ctrl_c_to_ac: Ctrl+C dispatched.")
     return True
 
 
@@ -621,6 +654,37 @@ def dismiss_session_screen() -> bool:
     return False
 
 
+def randomize_start_position(wait_s: float = 25.0) -> None:
+    """
+    Randomize the car's start position using AC's built-in AI autopilot.
+
+    Sequence:
+      1. Ctrl+C  — activate AI autopilot (AC built-in keybinding).
+      2. Sleep wait_s seconds — AI drives to a random position on track.
+      3. Ctrl+C  — deactivate AI autopilot.
+
+    Call this BEFORE env.reset() each episode.  env.reset() will then read
+    the current (randomized) position as the episode's starting observation
+    without teleporting the car.
+
+    Parameters
+    ----------
+    wait_s : float
+        Seconds to let the AI drive.  Default: 25.
+    """
+    logger.info("randomize_start_position: Ctrl+C → AI on ...")
+    if not _send_ctrl_c_to_ac():
+        logger.warning(
+            "randomize_start_position: AC window not found — skipping."
+        )
+        return
+    logger.info("randomize_start_position: AI driving for %.0fs ...", wait_s)
+    time.sleep(wait_s)
+    logger.info("randomize_start_position: Ctrl+C → AI off ...")
+    _send_ctrl_c_to_ac()
+    logger.info("randomize_start_position: done — ready for env.reset().")
+
+
 def full_cycle(max_retries: int = 3) -> None:
     """
     Full AC launch sequence: write_session_config → kill_ac → launch_ac_cm
@@ -632,6 +696,11 @@ def full_cycle(max_retries: int = 3) -> None:
     When this function returns without raising, the car is at the start line
     with status=AC_LIVE, isInPit=0 and the RL environment can call reset()/step().
     """
+    # Fast path: if AC is already live and plugin is responding, skip everything.
+    if is_ac_live() and _is_plugin_ready(PLUGIN_EGO_PORT):
+        logger.info("full_cycle: AC already live and plugin responding — skipping.")
+        return
+
     last_exc: Exception | None = None
 
     for attempt in range(1, max_retries + 1):

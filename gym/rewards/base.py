@@ -36,20 +36,22 @@ class BaseRewardComponent(ABC):
         prev_lap_dist: float,
         track_length: float,
         prev_gap_m: float = 0.0,
+        prev_speed_ms: float = 0.0,
     ) -> float:
         """
         Parameters
         ----------
-        telem         : current step telemetry
-        action        : current action in POLICY space [0,1]³
-        prev_action   : previous step action in POLICY space [0,1]³
-        prev_lap_dist : lap distance at the previous step (m)
-        track_length  : full track length (m), for normalising progress
-        prev_gap_m    : lateral gap from the previous step (m), for delta components
+        telem          : current step telemetry
+        action         : current action in POLICY space [0,1]³
+        prev_action    : previous step action in POLICY space [0,1]³
+        prev_lap_dist  : lap distance at the previous step (m)
+        track_length   : full track length (m), for normalising progress
+        prev_gap_m     : lateral gap from the previous step (m), for delta components
+        prev_speed_ms  : speed at the previous step (m/s), for delta speed components
 
         Returns
         -------
-        float — raw unsigned component value (sign handled by CompositeReward)
+        float — normalised component value in [-1, 1]
         """
 
     def __repr__(self) -> str:

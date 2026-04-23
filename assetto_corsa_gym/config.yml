@@ -49,7 +49,7 @@ DisCor:
 
 AssettoCorsa:
   ego_sampling_freq: 25     # in Hz
-  max_episode_py_time: 120. # in seconds (3000 steps at 25Hz, ~1 lap)
+  max_episode_py_time: 1000000. # effectively unlimited
   gap_const: 12.
   eval_number_of_laps: 4    # including out lap which is incomplete
   save_lap_csv: False
@@ -57,7 +57,7 @@ AssettoCorsa:
   ego_server_port: 2345
   opponents_server_port: 2346
   simulation_management_server_port: 2347
-  use_relative_actions: True
+  use_relative_actions: False
   enable_sensors: True
   vjoy_executed_by_server: False
   enable_out_of_track_termination: True
@@ -87,9 +87,10 @@ AssettoCorsa:
 
 OurEnv:
   reward_weights:
-    w1_progress:   0.30
-    w2_speed:      0.20
+    w1_progress:   0.10
+    w2_speed:      0.25
     w3_gap_abs:    0.35
     w5_smoothness: 0.15
+    w7_yaw:        0.15
   data_output_path: "collected_data/"   # relative to cwd when train/collect is launched
   episodes_per_run: 10                  # episodes to collect before handing off to offline trainer

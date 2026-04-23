@@ -337,6 +337,133 @@ class TransformerSACAgent:
         return np.clip(action + noise, -1.0, 1.0)
 
     # ------------------------------------------------------------------
+    # AC alive check
+    # ------------------------------------------------------------------
+
+    def _check_ac_alive(
+        self,
+        phase_num: int,
+        ep: int,
+        probe_frames: int = 200,
+        progress_threshold_m: float = 5.0,
+        max_retries: int = 3,
+    ) -> None:
+        """
+        Detect a silent AC freeze before each episode.
+
+        Applies full throttle for `probe_frames` steps and measures how far
+        the car travels along the track (LapDist delta, metres).  If the car
+        does not reach `progress_threshold_m` the AC session is restarted via
+        full_cycle().  After the probe the caller is responsible for calling
+        env.reset() to put the car back at the start line.
+
+        Parameters
+        ----------
+        phase_num : int
+            Current training phase (for log messages only).
+        ep : int
+            Current episode index within the phase (for log messages only).
+        probe_frames : int
+            Number of env.step() calls to send at full throttle.  At ~25 Hz
+            that is 2 seconds of driving; a live car will cover at least
+            progress_threshold_m metres in that time.
+        progress_threshold_m : float
+            Minimum LapDist delta (metres) required to consider AC responsive.
+            Default 5.0 m is safely below any real-car speed at full throttle
+            for 2 s (even 3 m/s gives 6 m) but well above a frozen car (0 m).
+        max_retries : int
+            How many full_cycle() restarts to attempt before raising.
+
+        Raises
+        ------
+        RuntimeError
+            If AC fails the liveness probe after `max_retries` restarts.
+        """
+        _probe_action = np.array([0.5, 1.0, 0.0], dtype=np.float32)  # center steer, full throttle, no brake
+
+        def _run_probe() -> float:
+            """
+            Run full-throttle probe and return total LapDist progress (metres).
+
+            our_env.reset() returns (obs, info) where info includes the raw
+            env state via `info = dict(self.env.state)`.  our_env.step()
+            returns (obs, reward, done, info) where info also contains the full
+            raw state via `info.update(self.env.state)`.  Both provide the
+            "LapDist" key (metres along current lap) directly from the AC plugin.
+            Falls back to 0.0 if the key is absent so the retry path fires.
+            """
+            # One blocking reset to put the car on track before probing.
+            _obs, _info = self.env.reset()
+            # Wait for AC to finish placing the car on track before measuring.
+            # Without this, LapDist reads 0.0 for the first ~2s after reset
+            # causing the probe to fail even when AC is healthy.
+            import time as _time
+            _time.sleep(3.0)
+            # Re-read LapDist after settle — first reading after reset is unreliable.
+            _, _, _, _settle_info = self.env.step(_probe_action)
+            lap_dist_start = float(_settle_info.get("LapDist", 0.0))
+
+            _last_info = _info
+            for _ in range(probe_frames):
+                _obs, _r, _done, _last_info = self.env.step(_probe_action)
+                if _done:
+                    break
+
+            lap_dist_end = float(_last_info.get("LapDist", 0.0))
+            return lap_dist_end - lap_dist_start
+
+        for attempt in range(1, max_retries + 1):
+            progress_m = _run_probe()
+            if progress_m >= progress_threshold_m:
+                logger.info(
+                    "[Phase %d] ep=%d  _check_ac_alive: probe passed — "
+                    "LapDist delta=%.2f m (threshold=%.1f m).",
+                    phase_num, ep + 1, progress_m, progress_threshold_m,
+                )
+                return  # AC is alive; caller will call reset() to restore start position
+
+            logger.warning(
+                "[Phase %d] ep=%d  _check_ac_alive: probe FAILED — "
+                "LapDist delta=%.2f m < threshold=%.1f m (attempt %d/%d).  "
+                "Restarting AC via full_cycle() ...",
+                phase_num, ep + 1, progress_m, progress_threshold_m,
+                attempt, max_retries,
+            )
+
+            # Restart AC.
+            try:
+                from ac_lifecycle import full_cycle
+            except ImportError as exc:
+                raise RuntimeError(
+                    "_check_ac_alive: could not import ac_lifecycle.full_cycle.  "
+                    f"Original error: {exc}"
+                ) from exc
+
+            try:
+                full_cycle(max_retries=3)
+            except Exception as exc:
+                logger.error(
+                    "[Phase %d] ep=%d  _check_ac_alive: full_cycle() failed on "
+                    "restart attempt %d/%d: %s",
+                    phase_num, ep + 1, attempt, max_retries, exc,
+                )
+                if attempt == max_retries:
+                    raise RuntimeError(
+                        f"_check_ac_alive: AC did not respond after {max_retries} "
+                        f"restart attempts.  Last probe progress: {progress_m:.2f} m "
+                        f"(threshold: {progress_threshold_m:.1f} m).  "
+                        "Training cannot continue — stopping cleanly."
+                    ) from exc
+                continue  # try the probe again after full_cycle raised
+
+        # Reached if all retries passed full_cycle but probe still failed.
+        raise RuntimeError(
+            f"_check_ac_alive: AC did not respond after {max_retries} restart "
+            f"attempts.  Last probe progress was below {progress_threshold_m:.1f} m.  "
+            "Training cannot continue — stopping cleanly."
+        )
+
+    # ------------------------------------------------------------------
     # Collection phase
     # ------------------------------------------------------------------
 
@@ -376,6 +503,7 @@ class TransformerSACAgent:
         _stat_threshold = float(self.config.get("stationary_threshold", 0.5))
 
         for ep in range(n_episodes):
+
             obs, _info = self.env.reset()
 
             # Per-episode rolling context window (deque auto-truncates at maxlen=W).
@@ -828,37 +956,71 @@ class TransformerSACAgent:
                     f"{'=' * 60}"
                 )
 
-                # Launch AC before collection.
+                # Launch AC before collection (only if not already live).
                 if self._manage_ac:
                     try:
-                        from ac_lifecycle import full_cycle
+                        from ac_lifecycle import full_cycle, is_ac_live, _is_plugin_ready, PLUGIN_EGO_PORT
                     except ImportError as exc:
                         raise RuntimeError(
                             "manage_ac=True but ac_lifecycle.py could not be imported. "
                             f"Original error: {exc}"
                         ) from exc
-                    logger.info(f"[Phase {phase}] Launching AC via full_cycle() ...")
-                    try:
-                        full_cycle(max_retries=3)
-                    except Exception as exc:
-                        logger.error(
-                            f"[Phase {phase}] full_cycle() raised an exception: {exc}"
-                        )
-                        raise
+                    if is_ac_live() and _is_plugin_ready(PLUGIN_EGO_PORT):
+                        logger.info(f"[Phase {phase}] AC already live and plugin responding — skipping full_cycle().")
+                    elif is_ac_live():
+                        # AC is running but plugin not ready yet — wait up to 60s before giving up
+                        logger.info(f"[Phase {phase}] AC live but plugin not ready — waiting up to 60s ...")
+                        from ac_lifecycle import PLUGIN_EGO_PORT as _PORT
+                        import time as _time
+                        deadline = _time.time() + 60
+                        while _time.time() < deadline:
+                            if _is_plugin_ready(_PORT):
+                                logger.info(f"[Phase {phase}] Plugin ready.")
+                                break
+                            _time.sleep(2)
+                        else:
+                            logger.warning(f"[Phase {phase}] Plugin did not respond in 60s — falling back to full_cycle().")
+                            try:
+                                full_cycle(max_retries=3)
+                            except Exception as exc:
+                                logger.error(f"[Phase {phase}] full_cycle() raised: {exc}")
+                                raise
+                    else:
+                        logger.info(f"[Phase {phase}] AC not live — launching via full_cycle() ...")
+                        try:
+                            full_cycle(max_retries=3)
+                        except Exception as exc:
+                            logger.error(
+                                f"[Phase {phase}] full_cycle() raised an exception: {exc}"
+                            )
+                            raise
+                    logger.info(f"[Phase {phase}] Verifying car can move ...")
+                    self._check_ac_alive(phase_num=phase, ep=0)
                     logger.info(f"[Phase {phase}] AC is live — starting collection.")
 
                 collect_stats = self.collect_phase(phase)
 
-                # Kill AC before GPU training.
+                # AC-friendly mode: do NOT kill AC before training.
+                # AC stays running during GPU training — only restarted if the
+                # plugin stops responding or car isn't moving (checked at the
+                # start of the next collection phase via _check_ac_alive).
                 if self._manage_ac:
-                    from ac_lifecycle import kill_ac
-                    logger.info(f"[Phase {phase}] Killing AC before training phase ...")
-                    kill_ac()
-                    logger.info(f"[Phase {phase}] AC killed — starting GPU training.")
+                    logger.info(f"[Phase {phase}] AC left running — starting GPU training.")
 
                 train_stats = self.train_phase(
                     phase, steps_collected=collect_stats["windows_added"]
                 )
+
+                # Release PyTorch cached VRAM back to WDDM pool so AC's DirectX
+                # context has headroom on the next collection phase.
+                try:
+                    import torch as _torch
+                    _torch.cuda.empty_cache()
+                    logger.info(f"[Phase {phase}] CUDA cache cleared — waiting 4s for WDDM to settle ...")
+                    import time as _time
+                    _time.sleep(4)
+                except Exception:
+                    pass
 
                 self._log_phase_summary(phase, collect_stats, train_stats)
                 self.save_checkpoint(phase)

@@ -1,0 +1,6 @@
+# Training curves and run outputs stay local.
+*
+!*/
+!.gitignore
+!**/.gitignore
+!**/.gitkeep

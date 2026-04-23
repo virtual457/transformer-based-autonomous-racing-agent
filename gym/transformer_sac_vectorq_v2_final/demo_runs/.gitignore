@@ -1,0 +1,6 @@
+# Demo videos and telemetry stay local.
+*
+!*/
+!.gitignore
+!**/.gitignore
+!**/.gitkeep

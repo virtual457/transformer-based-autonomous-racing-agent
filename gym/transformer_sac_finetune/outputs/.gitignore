@@ -1,0 +1,6 @@
+# Per-episode dashboards, plots, and run outputs stay local.
+*
+!*/
+!.gitignore
+!**/.gitignore
+!**/.gitkeep

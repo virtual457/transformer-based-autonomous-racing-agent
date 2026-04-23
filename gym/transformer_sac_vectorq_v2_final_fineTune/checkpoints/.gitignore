@@ -1,0 +1,6 @@
+# Fine-tune checkpoints and replay buffers stay local.
+*
+!*/
+!.gitignore
+!**/.gitignore
+!**/.gitkeep

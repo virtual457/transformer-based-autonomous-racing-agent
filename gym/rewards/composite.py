@@ -12,10 +12,11 @@ Architecture
 
 Weights (hardcoded defaults, validated at init)
 -----------------------------------------------
-    r_progress   0.30
-    r_speed      0.20
-    r_gap_abs    0.35
+    r_progress   0.20
+    r_speed      0.25
+    r_gap_abs    0.25
     r_smoothness 0.15
+    r_yaw        0.15
     ──────────────────
     total        1.00
 
@@ -24,8 +25,8 @@ each component's formula in components.py).
 
 Logging keys (backwards-compatible with reward_logger.py)
 ---------------------------------------------------------
-    r_progress, r_speed, r_gap_abs, r_smoothness, r_crash
-    c_progress, c_speed, c_gap_abs, c_smoothness, c_crash
+    r_progress, r_speed, r_gap_abs, r_smoothness, r_yaw, r_crash
+    c_progress, c_speed, c_gap_abs, c_smoothness, c_yaw, c_crash
     composite_pre_mult  — weighted sum (= total when not crashed)
     multiplier          — always 1.0 (kept for log schema compatibility)
     composite_post_mult — same as composite_pre_mult (no multiplier step)
@@ -41,9 +42,9 @@ Usage
 
     # Custom weights (must sum to 1.0):
     reward = CompositeReward.from_weights_dict({
-        "r_progress":   0.30,
-        "r_speed":      0.20,
-        "r_gap_abs":    0.35,
+        "r_progress":   0.25,
+        "r_speed":      0.30,
+        "r_gap_abs":    0.30,
         "r_smoothness": 0.15,
     })
 
@@ -132,9 +133,17 @@ class CompositeReward:
         prev_lap_dist: float,
         track_length: float = 5793.0,
         prev_gap_m: float = 0.0,
+        prev_speed_ms: float = 0.0,
     ) -> dict:
         """
         Compute the bounded reward for one step.
+
+        Parameters
+        ----------
+        prev_speed_ms : float
+            Speed (m/s) at the previous frame.  Required by SpeedDeltaReward
+            to compute the error reduction signal.  Defaults to 0.0 for
+            backwards compatibility with callers that predate this parameter.
 
         Returns
         -------
@@ -166,6 +175,7 @@ class CompositeReward:
                 "components":       parts,
                 "speed_multiplier": 1.0,
                 "log_row":          log_row,
+                "metrics":          self._build_metrics(telem),
             }
 
         # ── Evaluate 4 components ────────────────────────────────────────
@@ -177,6 +187,7 @@ class CompositeReward:
             raw = cc.component.compute(
                 telem, action, prev_action, prev_lap_dist, track_length,
                 prev_gap_m=prev_gap_m,
+                prev_speed_ms=prev_speed_ms,
             )
             weighted = cc.weight * raw      # negation is baked into raw
             parts[cc.component.name] = raw
@@ -203,6 +214,22 @@ class CompositeReward:
             "components":       parts,
             "speed_multiplier": 1.0,
             "log_row":          log_row,
+            "metrics":          self._build_metrics(telem),
+        }
+
+    # ------------------------------------------------------------------
+    # Metrics builder
+    # ------------------------------------------------------------------
+
+    @staticmethod
+    def _build_metrics(telem: "TelemetryFrame") -> dict:
+        """Raw physical values that were fed into the reward computation."""
+        import math
+        return {
+            "speed_ms":         float(telem.speed_ms),
+            "target_speed_ms":  float(getattr(telem, "target_speed_ms", 0.0)),
+            "gap_m":            float(telem.gap_m),
+            "yaw_error_deg":    abs(math.degrees(float(telem.yaw_error_rad))),
         }
 
     # ------------------------------------------------------------------
@@ -222,12 +249,14 @@ class CompositeReward:
             "r_speed":      parts.get("r_speed",       0.0),
             "r_gap_abs":    parts.get("r_gap_abs",     0.0),
             "r_smoothness": parts.get("r_smoothness",  0.0),
+            "r_yaw":        parts.get("r_yaw",         0.0),
             "r_crash":      parts.get("r_crash",       0.0),
             # signed weighted contributions
             "c_progress":   contributions.get("c_progress",   0.0),
             "c_speed":      contributions.get("c_speed",       0.0),
             "c_gap_abs":    contributions.get("c_gap_abs",     0.0),
             "c_smoothness": contributions.get("c_smoothness",  0.0),
+            "c_yaw":        contributions.get("c_yaw",         0.0),
             "c_crash":      contributions.get("c_crash",       0.0),
             # pipeline scalars (multiplier/reward_scale kept for log schema compat)
             "composite_pre_mult":    composite_pre_mult,
@@ -245,19 +274,22 @@ class CompositeReward:
     def default(cls) -> "CompositeReward":
         """
         Build with the locked design weights:
-            r_progress   0.30
-            r_speed      0.20
+            r_progress   0.10
+            r_speed      0.25
             r_gap_abs    0.35
             r_smoothness 0.15
+            r_yaw        0.15
         """
         from rewards.components import (
-            ProgressReward, TargetSpeedReward, GapReward, SmoothnessReward,
+            ProgressReward, SpeedReward, GapReward, SmoothnessReward,
+            YawAlignmentReward,
         )
         return cls([
-            ComponentConfig(ProgressReward(),        weight=0.30),
-            ComponentConfig(TargetSpeedReward(),     weight=0.20),
+            ComponentConfig(ProgressReward(),        weight=0.10),
+            ComponentConfig(SpeedReward(),           weight=0.25),
             ComponentConfig(GapReward(),             weight=0.35),
             ComponentConfig(SmoothnessReward(),      weight=0.15),
+            ComponentConfig(YawAlignmentReward(),    weight=0.15),
         ])
 
     @classmethod
@@ -277,15 +309,17 @@ class CompositeReward:
             })
         """
         from rewards.components import (
-            ProgressReward, SpeedReward, TargetSpeedReward, GapReward,
-            SmoothnessReward,
+            ProgressReward, SpeedReward, TargetSpeedReward, SpeedDeltaReward,
+            GapReward, SmoothnessReward, YawAlignmentReward,
         )
-        _name_to_class = {
-            "r_progress":     ProgressReward,
-            "r_speed":        TargetSpeedReward,   # new default; SpeedReward kept as alias
-            "r_speed_legacy": SpeedReward,          # backwards compat
-            "r_gap_abs":      GapReward,
-            "r_smoothness":   SmoothnessReward,
+        _name_to_class = {  # noqa: kept for from_weights_dict only
+            "r_progress":        ProgressReward,
+            "r_speed":           SpeedDeltaReward,   # new default
+            "r_speed_target":    TargetSpeedReward,  # backwards compat alias
+            "r_speed_legacy":    SpeedReward,         # backwards compat
+            "r_gap_abs":         GapReward,
+            "r_smoothness":      SmoothnessReward,
+            "r_yaw":             YawAlignmentReward,
         }
         components = []
         for name, weight in weights.items():
@@ -306,18 +340,20 @@ class CompositeReward:
         Normalises the weights so they sum to 1.0 (backwards-compat shim for
         configs that predate the bounded design).
 
-        Accepted keys: w1_progress, w2_speed, w3_gap_abs, w5_smoothness.
+        Accepted keys: w1_progress, w2_speed, w3_gap_abs, w5_smoothness, w7_yaw.
         w4_gap_delta and w6_crash are silently ignored (gap-delta removed;
         crash is a hard override).
         """
         from rewards.components import (
-            ProgressReward, TargetSpeedReward, GapReward, SmoothnessReward,
+            ProgressReward, SpeedReward, GapReward, SmoothnessReward,
+            YawAlignmentReward,
         )
         raw_weights = [
-            float(getattr(w, "w1_progress",  0.30)),
-            float(getattr(w, "w2_speed",      0.20)),
-            float(getattr(w, "w3_gap_abs",    0.35)),
+            float(getattr(w, "w1_progress",  0.20)),
+            float(getattr(w, "w2_speed",      0.25)),
+            float(getattr(w, "w3_gap_abs",    0.25)),
             float(getattr(w, "w5_smoothness", 0.15)),
+            float(getattr(w, "w7_yaw",        0.15)),
         ]
         total = sum(raw_weights)
         if abs(total) < 1e-9:
@@ -326,9 +362,10 @@ class CompositeReward:
 
         return cls([
             ComponentConfig(ProgressReward(),        weight=normalised[0]),
-            ComponentConfig(TargetSpeedReward(),     weight=normalised[1]),
+            ComponentConfig(SpeedReward(),           weight=normalised[1]),
             ComponentConfig(GapReward(),             weight=normalised[2]),
             ComponentConfig(SmoothnessReward(),      weight=normalised[3]),
+            ComponentConfig(YawAlignmentReward(),    weight=normalised[4]),
         ])
 
     @classmethod
@@ -351,13 +388,14 @@ class CompositeReward:
                 weight: 0.15
         """
         from rewards.components import (
-            ProgressReward, SpeedReward, TargetSpeedReward, GapReward,
-            SmoothnessReward, CrashReward,
+            ProgressReward, SpeedReward, TargetSpeedReward, SpeedDeltaReward,
+            GapReward, SmoothnessReward, CrashReward,
         )
         _cls_map = {
             "ProgressReward":      ProgressReward,
             "SpeedReward":         SpeedReward,          # backwards compat
-            "TargetSpeedReward":   TargetSpeedReward,    # new
+            "TargetSpeedReward":   TargetSpeedReward,    # backwards compat
+            "SpeedDeltaReward":    SpeedDeltaReward,     # new default
             "GapReward":           GapReward,
             "SmoothnessReward":    SmoothnessReward,
             "CrashReward":         CrashReward,          # accepted but skipped below

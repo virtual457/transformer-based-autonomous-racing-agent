@@ -7,9 +7,20 @@
 
 <div align="center">
   <p align="center" style="font-size: 80px;">🏎️</p>
-  <h3 align="center">Transformer-Based Autonomous Racing Agent</h3>
+  <h3 align="center">Vector-Q Transformer SAC for Autonomous Racing in Assetto Corsa</h3>
   <p align="center">
-    An end-to-end autonomous racing system for Assetto Corsa that combines live simulator control, behavioral cloning, Soft Actor-Critic, and transformer-based sequence modeling for continuous vehicle control.
+    A single-agent Soft Actor-Critic variant that decomposes the critic and the temperature along the action dimension, combined with a Transformer observation encoder and a behavior-cloning-seeded stratified replay buffer. Trained and evaluated in a live Assetto Corsa session at 25 Hz.
+  </p>
+
+  <p align="center">
+    <a href="https://youtu.be/ZNJG0orcfXg">
+      <img src="https://img.youtube.com/vi/ZNJG0orcfXg/maxresdefault.jpg" alt="Vector-Q Transformer SAC — full lap on Monza (click to watch)" width="720"/>
+    </a>
+    <br/>
+    <em>Click to watch: full-lap demo of Vector-Q Transformer SAC on Monza.</em>
+  </p>
+
+  <p align="center">
     <br/>
     <a href="https://github.com/virtual457/transformer-based-autonomous-racing-agent"><strong>Explore the docs</strong></a>
     <br/><br/>
@@ -25,7 +36,8 @@
   <summary>Table of Contents</summary>
   <ol>
     <li><a href="#about-the-project">About The Project</a></li>
-    <li><a href="#key-features">Key Features</a></li>
+    <li><a href="#key-contributions">Key Contributions</a></li>
+    <li><a href="#results">Results</a></li>
     <li><a href="#technical-architecture">Technical Architecture</a></li>
     <li><a href="#model-architecture">Model Architecture</a></li>
     <li><a href="#training-pipeline">Training Pipeline</a></li>
@@ -33,7 +45,6 @@
     <li><a href="#getting-started">Getting Started</a></li>
     <li><a href="#usage">Usage</a></li>
     <li><a href="#project-structure">Project Structure</a></li>
-    <li><a href="#performance-metrics">Performance Metrics</a></li>
     <li><a href="#roadmap">Roadmap</a></li>
     <li><a href="#built-with">Built With</a></li>
     <li><a href="#contributing">Contributing</a></li>
@@ -43,172 +54,168 @@
 
 ## About The Project
 
-This project implements a deep reinforcement learning system that learns to drive inside a live Assetto Corsa session rather than a simplified benchmark environment. The agent interacts with the simulator through the Assetto Corsa plugin stack, consumes telemetry and sensor observations at 25 Hz, and outputs continuous steering, throttle, and brake commands through vJoy-based control.
+Scalar Soft Actor-Critic assigns a single scalar Q-value and a single scalar entropy temperature `α` to the joint action. In racing this is a poor match for the task: the three action channels (steer, throttle, brake) are physically coupled but causally distinct, and components of the reward give opposing signals on different channels in the same frame (for example, applying brake when the car is slow deserves a penalty while applying throttle in the same state deserves a reward).
 
-The repository includes two main learning directions:
+This project replaces those three single-number quantities with per-channel vectors:
 
-- A Soft Actor-Critic baseline with an MLP policy and twin Q-networks.
-- A transformer-based SAC variant that uses temporal windows for sequence-aware driving decisions.
+- a **per-channel vector reward** that preserves opposing signals instead of averaging them away,
+- a **per-channel Q-critic** that lets each action dimension receive its own credit gradient,
+- a **per-channel auto-tuned temperature** `α_c` with an independent target entropy per channel,
+- a **Transformer observation encoder** over a 3-second (75-frame) window so the policy sees the corner-approach history, and
+- a **6-channel stratified FIFO replay buffer** seeded with 18,497 behavior-cloning demonstration windows so the critic has a usable expert gradient before online training begins.
 
-### Technical Achievements
-
-- Real-time simulator integration with a live Assetto Corsa control loop
-- Continuous-control SAC for steering, throttle, and brake
-- Transformer-based policy experiments for temporal racing behavior
-- Behavioral cloning pipeline for bootstrapping from human driving data
-- Reward shaping and replay-buffer strategies for sparse and unstable racing rewards
-- End-to-end workflow covering telemetry collection, preprocessing, training, and evaluation
-
-This project demonstrates experience in:
-
-- Deep Reinforcement Learning
-- Imitation Learning
-- Sequence Modeling with Transformers
-- Real-Time Systems Integration
-- Applied ML Infrastructure and Experimentation
+All of this runs against a live Assetto Corsa session via the `assetto_corsa_gym` plugin stack, with control sent back to the game through vJoy at 25 Hz.
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
-## Key Features
+## Key Contributions
 
-### Core RL Implementation
-- Continuous-action Soft Actor-Critic with policy and twin Q-networks
-- Tanh-squashed Gaussian policy for steer, throttle, and brake
-- Replay-buffer training with positive/negative reward balancing
-- Polyak target-network updates for stable Bellman targets
-- Gradient clipping and observation clamping for stability
-- Checkpointed training flow for long-running experiments
+1. **Vector-Q critic decomposition** — the scalar critic head is replaced by `Q(s,a) = [Q_s, Q_th, Q_br]`, trained against per-channel Bellman targets. Each output neuron receives a gradient from its own channel-specific reward, so a frame with correct brake and incorrect throttle no longer penalises the brake head.
+2. **Per-channel temperature** — the scalar `α` is replaced by `(α_s, α_th, α_br)`, each auto-tuned against its own target entropy. Steering runs with a looser entropy target, throttle and brake run with tighter ones. Across training, the three channels reach clearly separated equilibria that a scalar `α` cannot simultaneously satisfy.
+3. **Transformer observation encoder** — 4 Pre-LN layers, 4 heads, `d_model = 256`, over a 75-frame window. Policy and critic use independent encoder copies to avoid joint-embedding collapse.
+4. **Stratified replay with BC seeding** — six sub-buffers (positive / negative per action channel) of capacity `10^5` each, warm-started with 18,497 human-driven demonstration windows so the critic has shape before online training begins.
 
-### Transformer Variant
-- Transformer-based temporal encoder for racing observations
-- Rolling-window state representation for sequence-aware control
-- Separate encoder path for transformer SAC experiments
-- Architecture aimed at better braking and corner-entry decisions
-- Sequence replay support for transformer training
+Full mathematical formulation and experimental details are in [`main.tex`](main.tex) / the compiled report.
 
-### Simulator Integration
-- Live Assetto Corsa environment rather than a toy simulator
-- Telemetry-driven observation pipeline at 25 Hz
-- vJoy-based continuous control output
-- Assetto Corsa lifecycle helpers for launch, reset, and collection workflows
-- Evaluation and environment validation scripts in `tests/`
+<p align="right">(<a href="#readme-top">back to top</a>)</p>
 
-### Data and Training Workflow
-- Human driving collection and preprocessing scripts
-- Behavioral cloning preprocessing and warm-start pipeline
-- Agent rollout collection utilities
-- Evaluation reports and result artifacts for experiment review
+## Results
+
+Evaluated on the full Monza circuit in Assetto Corsa with a Mazda Miata.
+
+| metric | MLP SAC baseline | Vector-Q Transformer SAC | Δ |
+|---|---|---|---|
+| Lap completion rate | 0% | **80%** | +80 pp |
+| Mean distance / episode (m) | 619 | **3,862** | 6.2× |
+| Best episode distance (m) | 1,539 | **5,774** | 3.8× |
+| Speed mean (m/s) | 19.9 | **28.8** | 1.4× |
+| Speed max (m/s) | 43.1 | 44.1 | ≈ |
+| Mean |gap| (m) | 0.48 | 0.52 | ≈ |
+| Reward / frame | +0.27 | **+0.64** | 2.4× |
+| Positive-reward frames (%) | 97 | 97.9 | ≈ |
+
+Both policies track the racing line with comparable per-frame lateral precision (~0.5 m) and reach similar top speeds on the frames they actually drive; the difference is in **persistence** — the Vector-Q policy sustains good driving for 6.2× the distance and completes full laps on the majority of evaluation runs, whereas the scalar-SAC baseline never completed a lap.
+
+<p align="center">
+  <img src="figures/trajectory.png" alt="Speed and brake-zone map for a full-lap evaluation on Monza" width="820"/>
+  <br/>
+  <em>Full-lap evaluation on Monza. (a) trajectory coloured by per-frame speed; (b) trajectory coloured by per-frame brake action — five to six distinct braking zones, each aligned with a named Monza corner.</em>
+</p>
+
+Per-channel auto-tuning reaches clearly separated equilibria (`α_brake ≫ α_throttle ≫ α_steer`, roughly 3.5× spread), and the per-channel Q-values on positive vs. negative sub-buffers show ratios of ~4.7× on all three heads, indicating the decomposition is balanced rather than collapsed.
+
+<p align="center">
+  <img src="figures/per_channel_alpha.png" alt="Per-channel alpha auto-tuning reaches distinct equilibria" width="820"/>
+  <br/>
+  <em>Per-channel α auto-tuning reaches distinct equilibria on each action channel, with steer pinned near the clamp floor and brake settling ≈3.5× higher. A scalar α cannot simultaneously satisfy this spread.</em>
+</p>
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
 ## Technical Architecture
 
 ```text
-+--------------------------------------------------------------------+
-|                    LIVE ASSETTO CORSA TRAINING LOOP                |
-|                                                                    |
-|   Assetto Corsa <-> Plugin / Socket Layer <-> Our Environment      |
-|            ^                         |                    |         |
-|            |                         v                    v         |
-|         vJoy Control         Observation Builder      Reward Logic  |
-|                                                      / Replay Push  |
-|                                                            |        |
-|                                                            v        |
-|                                                SAC / Transformer SAC|
-|                                                            |        |
-|                                                            v        |
-|                                                   Checkpoints / Eval|
-+--------------------------------------------------------------------+
++----------------------------------------------------------------------+
+|                    LIVE ASSETTO CORSA TRAINING LOOP                  |
+|                                                                      |
+|   Assetto Corsa <-> Plugin / Socket Layer <-> Our Environment        |
+|           ^                            |                    |        |
+|           |                            v                    v        |
+|        vJoy Control         75-frame Window Builder   Per-Channel    |
+|        (steer/thr/br)              (3s @ 25Hz)        Reward Vector  |
+|                                          |                  |        |
+|                                          v                  v        |
+|                             Transformer Encoder x2 (policy + critic) |
+|                                          |                  |        |
+|                                          v                  v        |
+|                              Diag-Gaussian     Clipped-double        |
+|                              policy head       vector-Q head         |
+|                              + per-ch α_c      [Q_s, Q_th, Q_br]     |
+|                                                                      |
+|   6-channel stratified replay (10^5 per bin)                         |
+|       + 18,497 BC-demo windows seeded into positive sub-buffers      |
++----------------------------------------------------------------------+
 ```
-
-### Component Interactions
-
-1. Assetto Corsa runs the live driving session.
-2. The plugin and environment layer read telemetry, sensor, and control state.
-3. The environment builds observations for either the MLP or transformer policy.
-4. The policy predicts continuous actions.
-5. Actions are mapped to vJoy controls and sent back to the simulator.
-6. Rewards, episode transitions, and diagnostics are logged.
-7. SAC or transformer SAC updates the policy from replayed experience.
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
 ## Model Architecture
 
-### MLP SAC Baseline
+<p align="center">
+  <img src="figures/architecture.png" alt="Vector-Q Transformer SAC architecture" width="820"/>
+</p>
 
-The baseline SAC policy uses a multi-layer perceptron over telemetry-driven observations. The project report describes a 125-dimensional observation space and 3-dimensional action output:
+### Observation and action space
 
-- Observation space: telemetry, ray sensors, out-of-track flag, curvature look-ahead, action history, and previous observations
-- Action space: steer, throttle, brake in continuous policy space
-- Twin Q-networks for clipped double-Q learning
+- Observation token `o_t ∈ R^50` per frame (car-state channels, ray casts to the track boundary, OOT flag, curvature look-ahead, past-action history).
+- Window `O_t ∈ R^(75 × 50)` — 75 tokens = 3 seconds at 25 Hz.
+- Action `a_t ∈ [-1, 1]^3` — continuous steer, throttle, brake, tanh-squashed diagonal Gaussian.
 
-### Transformer SAC Variant
+### Transformer encoder
 
-The transformer variant replaces the flat encoder with a temporal encoder over a rolling observation window. This is intended to help with:
+- 4 Pre-LN Transformer layers, 4 heads, `d_model = 256`, feed-forward width 1024.
+- Learned positional embedding over 75 positions, mean-pooling over the sequence.
+- Policy and critic use **independent** encoder copies to prevent joint-embedding collapse.
 
-- braking-zone anticipation
-- corner approach timing
-- smoother high-speed action selection
-- better use of recent temporal context than flat stacked features alone
+### Heads
 
-### Design Rationale
+- **Policy head**: `256 → 256 → 6` (3 means + 3 log-stds).
+- **Twin-Q vector head**: `(256 + 3) → 256 → 3` per Q-network, clipped double-Q.
+- **Per-channel `α_c`**: three scalar parameters, each `α_c = exp(log α_c)` clamped to `log α_c ∈ [-5, 0]`, auto-tuned against target entropy `(−2, −3, −3)`.
 
-- MLP SAC provides a simpler and faster baseline
-- Transformer SAC explores whether temporal modeling improves racing behavior
-- Behavioral cloning provides a warm-start path from human driving data before online RL fine-tuning
+### Parameter budget
+
+- Total: ~6.6M parameters.
+- ~97% concentrated in the two Transformer encoders; policy and twin-Q heads add ~200k.
+- A matched MLP SAC baseline on a single-frame observation has ~0.44M parameters — the encoder accounts for essentially all of the additional capacity (a ~15× increase), purchased for the 3-second temporal context.
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
 ## Training Pipeline
 
-### High-Level Loop
+### High-level loop
 
 ```python
 while training:
-    collect_rollouts_from_assetto_corsa()
-    push_transitions_to_replay_buffer()
-    sample_batches_from_buffer()
-    update_policy_and_critics()
-    save_checkpoints_and_logs()
+    collect_rollouts_from_assetto_corsa()   # 25 Hz telemetry + vJoy control
+    push_transitions_to_stratified_replay() # 6 sub-buffers (pos/neg per channel)
+    sample_balanced_minibatches()           # uniform across sub-buffers
+    update_vector_critic()                  # per-channel Bellman targets
+    update_actor_with_per_channel_alpha()   # sum_c α_c log π_c − Q_c
+    auto_tune_each_alpha()                  # channel-wise dual update
+    polyak_update_targets()
+    checkpoint_and_log()
 ```
 
-### Training Stages
+### Training stages
 
-**1. Collection**
-- connect to or launch Assetto Corsa
-- drive with the current policy
-- record observations, actions, rewards, and termination signals
+1. **Warm start** — positive sub-buffers are seeded with 18,497 human-driven BC demonstration windows so the critic sees expert trajectories before the first gradient step.
+2. **Online training** — SAC continues to collect new transitions, push them into the stratified buffer, and update. The BC data is never re-injected.
+3. **Fine-tune** — a separate `_fineTune` variant resumes from a pre-FT checkpoint with tighter `α` targets and harder corner-focused replay sampling.
 
-**2. Replay and learning**
-- sample experience batches
-- update critics from Bellman targets
-- update the actor using entropy-regularized SAC objectives
-- refresh target networks with soft updates
+### Optimisation
 
-**3. Evaluation and iteration**
-- checkpoint models
-- inspect logs and evaluation reports
-- refine rewards, observation design, or initialization strategy
+- Adam, `3 × 10^{-4}`
+- Discount `γ = 0.992`
+- Polyak `τ = 0.005`
+- Batch size 256
+- Clipped double-Q with target Q computed on the sampled next action
 
-### Why This Pipeline Matters
+### Why this pipeline matters
 
-Racing agents are sensitive to reward shaping, unstable early exploration, and temporal dynamics. This repo is structured to support fast iteration across those three pressure points instead of treating training as a single-script black box.
+Racing policies are sensitive to three pressure points: reward shaping, early-exploration collapse, and temporal context. Each architectural choice here targets one of those explicitly — the vector reward and vector Q keep channel-level credit alive, the BC seed and stratified replay prevent the critic from drowning in easy-straight positive rewards, and the Transformer encoder removes the temporal-context burden from the value function.
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
 ## Behavioral Cloning Pipeline
 
-The repo includes an imitation-learning path through `AICLONE/` and `human_data/` to initialize policies from demonstrations before online RL training.
+Human driving traces are preprocessed into windowed demonstration datasets before online RL starts. Demonstrations are used for:
 
-### Pipeline Goals
+- warm-starting the critic on the expert racing line (via injection into the positive sub-buffers),
+- validating reward shaping against human behavior,
+- comparing pure RL against demonstration-bootstrapped training.
 
-- collect human driving traces
-- preprocess demonstrations into model-ready datasets
-- learn a driving prior before online reinforcement learning
-- compare pure RL against demonstration-bootstrapped policies
-
-### Included Components
+### Included components
 
 - `human_data/collect_human.py`
 - `human_data/preprocess_human.py`
@@ -249,9 +256,9 @@ AssetoCorsa\Scripts\activate
 pip install -r assetto_corsa_gym/requirements.txt
 ```
 
-Depending on your setup, you may also need to install the CUDA-compatible PyTorch build for your GPU.
+Install the CUDA-compatible PyTorch build for your GPU if required.
 
-### Simulator Setup
+### Simulator setup
 
 You will need to configure:
 
@@ -269,13 +276,19 @@ Helpful references:
 
 ## Usage
 
-### Train the MLP SAC agent
+### Train the Vector-Q Transformer SAC agent (shipped model)
+
+```bash
+AssetoCorsa\Scripts\python.exe gym\transformer_sac_vectorq_v2_final_fineTune\train.py --manage-ac
+```
+
+### Train the baseline MLP SAC agent
 
 ```bash
 AssetoCorsa\Scripts\python.exe gym\sac\train_sac.py --manage-ac
 ```
 
-### Train the transformer SAC agent
+### Train an intermediate Transformer SAC variant (scalar-Q, scalar-α)
 
 ```bash
 AssetoCorsa\Scripts\python.exe gym\transformer_sac\train.py --manage-ac
@@ -287,7 +300,7 @@ AssetoCorsa\Scripts\python.exe gym\transformer_sac\train.py --manage-ac
 AssetoCorsa\Scripts\python.exe human_data\preprocess_human.py
 ```
 
-### Run behavioral cloning preprocessing
+### Behavioral cloning preprocessing
 
 ```bash
 AssetoCorsa\Scripts\python.exe AICLONE\preprocess_parquet.py
@@ -306,11 +319,16 @@ AssetoCorsa\Scripts\python.exe tests\test_ac_lifecycle.py
 ```text
 transformer-based-autonomous-racing-agent/
 |
-|-- gym/                         RL environment, SAC, transformer SAC, rewards
-|   |-- sac/                     MLP SAC implementation
-|   |-- transformer_sac/         Transformer SAC implementation
-|   |-- telemetry/               Telemetry parsing and environment support
-|   |-- rewards/                 Reward components and composition
+|-- gym/                                              RL environment, SAC variants, rewards
+|   |-- sac/                                          MLP SAC baseline
+|   |-- transformer_sac/                              Transformer + scalar Q + scalar α
+|   |-- transformer_sac_finetune/                     Scalar-Q Transformer + fine-tune
+|   |-- transformer_sac_vectorq/                      First Vector-Q variant
+|   |-- transformer_sac_vectorq_v2/                   Second Vector-Q variant
+|   |-- transformer_sac_vectorq_v2_final/             Pre-fine-tune Vector-Q variant
+|   |-- transformer_sac_vectorq_v2_final_fineTune/    Shipped model
+|   |-- telemetry/                                    Telemetry parsing and environment support
+|   |-- rewards/                                      Reward components and composition
 |
 |-- AICLONE/                     Behavioral cloning and offline preprocessing
 |-- human_data/                  Human driving collection and preprocessing
@@ -319,57 +337,34 @@ transformer-based-autonomous-racing-agent/
 |-- eval/                        Evaluation scripts
 |-- tests/                       Setup and validation scripts
 |-- results/                     Evaluation outputs and reports
-|-- report.md                    Technical report
+|-- figures/                     Figures used in the technical report
+|-- main.tex                     NeurIPS-style technical report source
 |-- README.md                    This file
 ```
-
-<p align="right">(<a href="#readme-top">back to top</a>)</p>
-
-## Performance Metrics
-
-### Environment Characteristics
-
-| Metric | Value |
-|--------|-------|
-| Control frequency | 25 Hz |
-| Simulator | Assetto Corsa |
-| Control type | Continuous steer, throttle, brake |
-| Main learning setup | SAC + transformer SAC experiments |
-
-### Model and Training Highlights
-
-| Area | Detail |
-|------|--------|
-| Baseline approach | MLP-based Soft Actor-Critic |
-| Sequence approach | Transformer-based SAC |
-| Demonstration support | Human-data preprocessing + behavioral cloning |
-| Integration mode | Live simulator control with telemetry feedback |
-
-### Why These Metrics Matter
-
-This project is less about a leaderboard score and more about solving the engineering problem of training a stable autonomous racing policy in a live simulator loop with realistic control, temporal reasoning, and data bootstrapping.
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
 ## Roadmap
 
 ### Completed
-- [x] Live Assetto Corsa integration
-- [x] Continuous-control SAC training pipeline
-- [x] Behavioral cloning preprocessing pipeline
-- [x] Transformer SAC implementation path
-- [x] Evaluation scripts and result tracking
-- [x] Project documentation and technical reporting
+- [x] Live Assetto Corsa integration at 25 Hz
+- [x] MLP SAC baseline
+- [x] Transformer observation encoder
+- [x] Vector-Q critic decomposition
+- [x] Per-channel auto-tuned temperature
+- [x] Stratified replay with BC demonstration seeding
+- [x] 80% lap-completion evaluation on Monza
+- [x] NeurIPS-format technical report
 
-### In Progress
-- [ ] Improve training stability and policy quality
-- [ ] Compare MLP and transformer variants more systematically
-- [ ] Tighten evaluation around lap consistency and control smoothness
+### In progress
+- [ ] Corner-specific curriculum (targeted re-collection at Variante della Roggia)
+- [ ] Per-component matched-compute ablations
+- [ ] Tighter evaluation of lap consistency and control smoothness
 
 ### Planned
-- [ ] Stronger ablation studies across reward and architecture choices
-- [ ] More polished evaluation summaries and visualizations
-- [ ] Broader multi-track or multi-condition experiments
+- [ ] Reward-sensitive auto-α (state-conditioned target entropy based on per-channel advantage)
+- [ ] Multi-track generalisation to test whether Vector-Q gains survive track-level distribution shift
+- [ ] Critic ensembles composed with the per-channel Q architecture
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
@@ -395,10 +390,11 @@ This project is less about a leaderboard score and more about solving the engine
 
 Contributions are welcome. Helpful areas include:
 
-- reward-design experiments
-- transformer architecture improvements
-- behavioral cloning refinements
-- evaluation tooling
+- per-component matched-compute ablations
+- reward-sensitive auto-α implementation and validation
+- multi-track evaluation
+- corner-specific curriculum design
+- critic ensembles and uncertainty-driven exploration
 - documentation and reproducibility improvements
 
 If you want to contribute:

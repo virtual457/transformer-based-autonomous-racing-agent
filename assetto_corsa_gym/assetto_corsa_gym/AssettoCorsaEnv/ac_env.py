@@ -152,7 +152,7 @@ class AssettoCorsaEnv(Env, gym_utils.EzPickle):
         'LapCount': 1.,
         'LapDist': 1.,
         # commands feedback
-        'steerAngle': 450,
+        'steerAngle': 504,
         'accStatus': 1.,
         'brakeStatus': 1.,
         'actualGear': 8.,
@@ -740,8 +740,8 @@ class AssettoCorsaEnv(Env, gym_utils.EzPickle):
         # action keeps the input in-distribution from the very first step.
         _steer_scale = self.obs_channels_info['steerAngle']
         _cur_steer = state['steerAngle'] / _steer_scale
-        _cur_pedal = state['accStatus']
-        _cur_brake = state['brakeStatus']
+        _cur_pedal = state['accStatus']   * 2.0 - 1.0   # [0,1] → [-1,1]
+        _cur_brake = state['brakeStatus'] * 2.0 - 1.0   # [0,1] → [-1,1]
 
         if len(history) < PAST_ACTIONS_WINDOW:
             _n_missing = PAST_ACTIONS_WINDOW - len(history)
@@ -749,10 +749,10 @@ class AssettoCorsaEnv(Env, gym_utils.EzPickle):
                 [_cur_steer] * _n_missing + [history[i]['steerAngle'] / _steer_scale for i in range(len(history))]
             )
             current_controls_pedal_prev = np.array(
-                [_cur_pedal] * _n_missing + [history[i]['accStatus'] for i in range(len(history))]
+                [_cur_pedal] * _n_missing + [history[i]['accStatus']   * 2.0 - 1.0 for i in range(len(history))]
             )
             current_controls_brake_prev = np.array(
-                [_cur_brake] * _n_missing + [history[i]['brakeStatus'] for i in range(len(history))]
+                [_cur_brake] * _n_missing + [history[i]['brakeStatus'] * 2.0 - 1.0 for i in range(len(history))]
             )
             obs = np.hstack([obs, current_controls_steer_prev, current_controls_pedal_prev, current_controls_brake_prev])
             # For actions_diff, use the last real history entry if any, else zero
@@ -765,9 +765,9 @@ class AssettoCorsaEnv(Env, gym_utils.EzPickle):
             else:
                 actions_diff = np.zeros(self.action_dim)
         else:
-            current_controls_steer_prev = np.array( [history[i]['steerAngle'] / _steer_scale for i in range(-PAST_ACTIONS_WINDOW,0) ]) # if PAST_ACTIONS_WINDOW=3; -3, -2, -1
-            current_controls_pedal_prev = np.array( [history[i]['accStatus'] for i in range(-PAST_ACTIONS_WINDOW,0) ])
-            current_controls_brake_prev = np.array( [history[i]['brakeStatus'] for i in range(-PAST_ACTIONS_WINDOW,0) ])
+            current_controls_steer_prev = np.array( [history[i]['steerAngle'] / _steer_scale for i in range(-PAST_ACTIONS_WINDOW,0) ])
+            current_controls_pedal_prev = np.array( [history[i]['accStatus']   * 2.0 - 1.0 for i in range(-PAST_ACTIONS_WINDOW,0)] )
+            current_controls_brake_prev = np.array( [history[i]['brakeStatus'] * 2.0 - 1.0 for i in range(-PAST_ACTIONS_WINDOW,0)] )
             obs = np.hstack([obs, current_controls_steer_prev, current_controls_pedal_prev, current_controls_brake_prev])
             actions_diff = np.array([(state['steerAngle']  - history[-1]['steerAngle'])  / _steer_scale,
                                         (state['accStatus']   -  history[-1]['accStatus']),
@@ -856,7 +856,7 @@ class AssettoCorsaEnv(Env, gym_utils.EzPickle):
 
             # calculate steps lost in the communication with the server
             differences = np.diff(ep.steps.values)
-            number_packages_lost = np.sum(differences[differences > 1])
+            number_packages_lost = np.sum(differences[differences > 2])
             gap_abs_max = np.abs(ep.gap).max()
             r = { "ep_count": self.n_episodes,
                   "ep_steps":len(ep),

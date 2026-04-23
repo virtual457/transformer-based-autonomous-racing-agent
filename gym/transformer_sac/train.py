@@ -85,7 +85,7 @@ SAC_HYPERPARAMS = {
     "lr":             3e-4,
     "gamma":          0.992,
     "tau":            0.005,
-    "target_entropy": -3.0,  # = -action_dim
+    "target_entropy": 0.5,   # floor: SAC increases alpha when entropy drops below this
 }
 
 # ── Replay buffer config ───────────────────────────────────────────────────────

@@ -28,6 +28,7 @@ class TelemetryFrame:
     lap_time_s: float = 0.0
     best_lap_s: float = 0.0
     target_speed_ms: float = 0.0   # populated by our_env.py when use_target_speed=True
+    yaw_error_rad: float = 0.0     # car heading minus racing-line heading, normalised to [-π, π]
     raw: dict = field(default_factory=dict, repr=False)
 
 

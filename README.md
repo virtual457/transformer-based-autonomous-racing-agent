@@ -6,8 +6,7 @@
 <a id="readme-top"></a>
 
 <div align="center">
-  <p align="center" style="font-size: 80px;">🏎️</p>
-  <h3 align="center">Vector-Q Transformer SAC for Autonomous Racing in Assetto Corsa</h3>
+  <h3 align="center">🏎️ Vector-Q Transformer SAC for Autonomous Racing in Assetto Corsa</h3>
   <p align="center">
     A single-agent Soft Actor-Critic variant that decomposes the critic and the temperature along the action dimension, combined with a Transformer observation encoder and a behavior-cloning-seeded stratified replay buffer. Trained and evaluated in a live Assetto Corsa session at 25 Hz.
   </p>

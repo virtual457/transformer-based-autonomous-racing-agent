@@ -66,3 +66,7 @@ Thumbs.db
 *.bak
 *.tmp
 *.temp
+
+# Large files / nested git backups
+demo.zip
+**/.git_backup_root_migration/

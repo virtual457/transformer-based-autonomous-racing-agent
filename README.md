@@ -14,7 +14,7 @@
 
   <p align="center">
     <a href="https://youtu.be/ZNJG0orcfXg">
-      <img src="figures/demo_preview.gif" alt="Vector-Q Transformer SAC — full lap on Monza (click to watch full video)" width="720"/>
+      <img src="docs/figures/demo_preview.gif" alt="Vector-Q Transformer SAC — full lap on Monza (click to watch full video)" width="720"/>
     </a>
     <br/>
     <em>Click the clip to watch the full-lap demo on YouTube.</em>
@@ -75,7 +75,7 @@ All of this runs against a live Assetto Corsa session via the `assetto_corsa_gym
 3. **Transformer observation encoder** — 4 Pre-LN layers, 4 heads, `d_model = 256`, over a 75-frame window. Policy and critic use independent encoder copies to avoid joint-embedding collapse.
 4. **Stratified replay with BC seeding** — six sub-buffers (positive / negative per action channel) of capacity `10^5` each, warm-started with 18,497 human-driven demonstration windows so the critic has shape before online training begins.
 
-Full mathematical formulation and experimental details are in [`main.tex`](main.tex) / the compiled report.
+Full mathematical formulation and experimental details are in [`main.tex`](docs/paper/main.tex) / the compiled report.
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
@@ -97,7 +97,7 @@ Evaluated on the full Monza circuit in Assetto Corsa with a Mazda Miata.
 Both policies track the racing line with comparable per-frame lateral precision (~0.5 m) and reach similar top speeds on the frames they actually drive; the difference is in **persistence** — the Vector-Q policy sustains good driving for 6.2× the distance and completes full laps on the majority of evaluation runs, whereas the scalar-SAC baseline never completed a lap.
 
 <p align="center">
-  <img src="figures/trajectory.png" alt="Speed and brake-zone map for a full-lap evaluation on Monza" width="820"/>
+  <img src="docs/figures/trajectory.png" alt="Speed and brake-zone map for a full-lap evaluation on Monza" width="820"/>
   <br/>
   <em>Full-lap evaluation on Monza. (a) trajectory coloured by per-frame speed; (b) trajectory coloured by per-frame brake action — five to six distinct braking zones, each aligned with a named Monza corner.</em>
 </p>
@@ -105,7 +105,7 @@ Both policies track the racing line with comparable per-frame lateral precision 
 Per-channel auto-tuning reaches clearly separated equilibria (`α_brake ≫ α_throttle ≫ α_steer`, roughly 3.5× spread), and the per-channel Q-values on positive vs. negative sub-buffers show ratios of ~4.7× on all three heads, indicating the decomposition is balanced rather than collapsed.
 
 <p align="center">
-  <img src="figures/per_channel_alpha.png" alt="Per-channel alpha auto-tuning reaches distinct equilibria" width="820"/>
+  <img src="docs/figures/per_channel_alpha.png" alt="Per-channel alpha auto-tuning reaches distinct equilibria" width="820"/>
   <br/>
   <em>Per-channel α auto-tuning reaches distinct equilibria on each action channel, with steer pinned near the clamp floor and brake settling ≈3.5× higher. A scalar α cannot simultaneously satisfy this spread.</em>
 </p>
@@ -142,7 +142,7 @@ Per-channel auto-tuning reaches clearly separated equilibria (`α_brake ≫ α_t
 ## Model Architecture
 
 <p align="center">
-  <img src="figures/architecture.png" alt="Vector-Q Transformer SAC architecture" width="820"/>
+  <img src="docs/figures/architecture.png" alt="Vector-Q Transformer SAC architecture" width="820"/>
 </p>
 
 ### Observation and action space
@@ -217,12 +217,12 @@ Human driving traces are preprocessed into windowed demonstration datasets befor
 
 ### Included components
 
-- `human_data/collect_human.py`
-- `human_data/preprocess_human.py`
-- `AICLONE/preprocess_parquet.py`
-- `AICLONE/pretrain_actor.py`
-- `AICLONE/generate_target_speed.py`
-- `AICLONE/finetune_on_demo.py`
+- `assets/human_data/collect_human.py`
+- `assets/human_data/preprocess_human.py`
+- `src/AICLONE/preprocess_parquet.py`
+- `src/AICLONE/pretrain_actor.py`
+- `src/AICLONE/generate_target_speed.py`
+- `src/AICLONE/finetune_on_demo.py`
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
@@ -253,7 +253,7 @@ python -m venv AssetoCorsa
 AssetoCorsa\Scripts\activate
 
 # 3. Install dependencies
-pip install -r assetto_corsa_gym/requirements.txt
+pip install -r src/assetto_corsa_gym/requirements.txt
 ```
 
 Install the CUDA-compatible PyTorch build for your GPU if required.
@@ -262,15 +262,15 @@ Install the CUDA-compatible PyTorch build for your GPU if required.
 
 You will need to configure:
 
-- the Assetto Corsa plugin files from `assetto_corsa_gym/`
+- the Assetto Corsa plugin files from `src/assetto_corsa_gym/`
 - the vJoy controller profile
 - the simulator environment and telemetry flow
 
 Helpful references:
 
-- [assetto_corsa_gym/README.md](assetto_corsa_gym/README.md)
-- [assetto_corsa_gym/INSTALL.md](assetto_corsa_gym/INSTALL.md)
-- [assetto_corsa_gym/INSTALL_Linux.md](assetto_corsa_gym/INSTALL_Linux.md)
+- [src/assetto_corsa_gym/README.md](src/assetto_corsa_gym/README.md)
+- [src/assetto_corsa_gym/INSTALL.md](src/assetto_corsa_gym/INSTALL.md)
+- [src/assetto_corsa_gym/INSTALL_Linux.md](src/assetto_corsa_gym/INSTALL_Linux.md)
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
@@ -319,27 +319,39 @@ AssetoCorsa\Scripts\python.exe tests\test_ac_lifecycle.py
 ```text
 transformer-based-autonomous-racing-agent/
 |
-|-- gym/                                              RL environment, SAC variants, rewards
-|   |-- sac/                                          MLP SAC baseline
-|   |-- transformer_sac/                              Transformer + scalar Q + scalar α
-|   |-- transformer_sac_finetune/                     Scalar-Q Transformer + fine-tune
-|   |-- transformer_sac_vectorq/                      First Vector-Q variant
-|   |-- transformer_sac_vectorq_v2/                   Second Vector-Q variant
-|   |-- transformer_sac_vectorq_v2_final/             Pre-fine-tune Vector-Q variant
-|   |-- transformer_sac_vectorq_v2_final_fineTune/    Shipped model
-|   |-- telemetry/                                    Telemetry parsing and environment support
-|   |-- rewards/                                      Reward components and composition
-|
-|-- AICLONE/                     Behavioral cloning and offline preprocessing
-|-- human_data/                  Human driving collection and preprocessing
-|-- collectDataAI/               Agent rollout collection utilities
-|-- assetto_corsa_gym/           Assetto Corsa plugin and integration layer
-|-- eval/                        Evaluation scripts
-|-- tests/                       Setup and validation scripts
-|-- results/                     Evaluation outputs and reports
-|-- figures/                     Figures used in the technical report
-|-- main.tex                     NeurIPS-style technical report source
 |-- README.md                    This file
+|
+|-- src/                         All source code
+|   |-- gym/                                              RL environment, SAC variants, rewards
+|   |   |-- sac/                                          MLP SAC baseline
+|   |   |-- transformer_sac/                              Transformer + scalar Q + scalar α
+|   |   |-- transformer_sac_finetune/                     Scalar-Q Transformer + fine-tune
+|   |   |-- transformer_sac_vectorq/                      First Vector-Q variant
+|   |   |-- transformer_sac_vectorq_v2/                   Second Vector-Q variant
+|   |   |-- transformer_sac_vectorq_v2_final/             Pre-fine-tune Vector-Q variant
+|   |   |-- transformer_sac_vectorq_v2_final_fineTune/    Shipped model
+|   |   |-- telemetry/                                    Telemetry parsing and environment support
+|   |   |-- rewards/                                      Reward components and composition
+|   |-- AICLONE/                 Behavioral cloning and offline preprocessing
+|   |-- collectDataAI/           Agent rollout collection utilities
+|   |-- assetto_corsa_gym/       Assetto Corsa plugin and integration layer
+|   |-- eval/                    Evaluation scripts
+|   |-- tests/                   Setup and validation scripts
+|
+|-- assets/                      Data, checkpoints, outputs
+|   |-- human_data/              Human driving collection and preprocessing
+|   |-- collected_data/          Collected agent rollout data
+|   |-- data/                    Processed datasets
+|   |-- checkpoints/             Model checkpoints
+|   |-- trained_models/          Final trained models
+|   |-- outputs/                 Training outputs
+|   |-- results/                 Evaluation outputs and reports
+|   |-- reward_log/              Reward logs
+|
+|-- docs/                        Documentation, paper, figures, demo
+|   |-- paper/                   NeurIPS-style technical report source (main.tex)
+|   |-- figures/                 Figures used in the technical report
+|   |-- demo/                    Offline inference demo notebook and assets
 ```
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>

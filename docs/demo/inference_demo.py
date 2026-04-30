@@ -3,7 +3,7 @@ Offline inference demo for Vector-Q Transformer SAC.
 
 Loads the trained checkpoint, reads a handful of observation windows from
 the stratified replay buffer on disk, and runs the policy + vector-Q
-critic forward. No Assetto Corsa needed — the buffer .dat files contain
+critic forward. No Assetto Corsa needed, since the buffer .dat files contain
 the exact (75, 50) observation tokens the policy was trained on.
 
 Each block below is marked with `# %%` so it renders as a cell in
@@ -157,7 +157,7 @@ fig, axes = plt.subplots(2, 3, figsize=(11.5, 6.2),
 names  = ["steer", "throttle", "brake"]
 colors = ["tab:blue", "tab:orange", "tab:red"]
 
-# Top row: scatter — predicted action (this model) vs action stored when
+# Top row: scatter of predicted action (this model) vs action stored when
 # the transition was collected. Tight diagonal clustering = policy has
 # converged toward what it originally did on these states.
 for i, (ax, name, c) in enumerate(zip(axes[0], names, colors)):
@@ -182,7 +182,7 @@ for i, (ax, name, c) in enumerate(zip(axes[1], names, colors)):
     ax.legend(fontsize=9)
     ax.grid(True, ls=":", alpha=0.35)
 
-fig.suptitle("Vector-Q Transformer SAC — offline inference on "
+fig.suptitle("Vector-Q Transformer SAC: offline inference on "
              f"{len(sample_obs)} replay-buffer windows", fontsize=12)
 plt.savefig(OUT_PNG, dpi=140, bbox_inches="tight")
 print(f"wrote {OUT_PNG}")
@@ -191,7 +191,7 @@ print(f"wrote {OUT_PNG}")
 # Optional sanity check: one window end-to-end
 
 idx = 0
-print("\n— single-window inspection —")
+print("\n(single-window inspection)")
 print(f"buffer tag:            {sample_tag[idx]}")
 print(f"stored action:         {sample_act_stored[idx].tolist()}")
 print(f"stored per-ch reward:  {sample_rew_stored[idx].tolist()}")
